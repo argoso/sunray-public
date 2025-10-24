@@ -1,11 +1,7 @@
-# LC29HEA Project
+# LC29HEA 
 
 We are working on an alternative project that uses the **Quectel LC29HEA GNSS module**.  
 The goal is to enable RTK (Real-Time Kinematic) positioning by connecting the LC29H to an **NTRIP caster** to receive correction data.
-
----
-
-## 🧩 Overview
 
 To achieve this, we use an **ESP32 module**, and the corresponding firmware can be found in the [`esp32_rtk`](./esp32_rtk) folder.  
 *(Note: The comments in the source code are currently in Estonian.)*
