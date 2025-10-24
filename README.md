@@ -35,6 +35,9 @@ Because the LC29H communicates using **standard NMEA sentences**, this solution 
 
 We have also implemented support for the **LC29H and ESP32 reboot command**:
 
+## Hardware setup
+
+![LC29HEA + ESP32 setup](doc/smt32f103zed.png)
 
 
 
