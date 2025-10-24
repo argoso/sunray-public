@@ -1,0 +1,110 @@
+Basestation
+# Clear the current configuration and restore the default settings set via $PAIR
+$PAIR514*3A
+# clear all data
+$PAIR512*3C
+# restore PQTM params to default and reset
+$PQTMRESTOREPAR*13
+# set receiver to base mode
+$PQTMCFGRCVRMODE,W,2*29
+# save PQTM params to flash
+$PQTMSAVEPAR*5A
+# reboot module
+$PAIR023*3B
+//
+# Choose one MSM7 or MSM4. It depens on you application
+# output RTCM3 MSM7 messages (1077,1087,1097,1127)
+$PAIR432,1*22
+or
+# output RTCM3 MSM4 messages (1074,1084,1094,1124)
+$PAIR432,0*23
+//
+# output RTCM3 antenna position (1005)
+$PAIR434,1*24
+# set RTCM3.x output with satellite ephemeris (for fast RTK to rover)
+$PAIR436,1*26
+# Enable NMEA GGA message
+$PAIR062,0,01*0F
+# set base location in XYZ coords (Eiffel tower)
+$PQTMCFGSVIN,W,2,0,0,4200968.566,168330.122,4780131.702*28
+# save PQTM params to flash
+$PQTMSAVEPAR*5A # save PQTM params to flash
+# reboot module
+$PAIR023*3B
+
+
+Rover:
+# Clear the current configuration and restore the default settings set via $PAIR
+$PAIR514*3A
+# clear all data
+$PAIR512*3C
+# restore PQTM params to default and reset
+$PQTMRESTOREPAR*13
+# set receiver to rover mode
+$PQTMCFGRCVRMODE,W,1*2A
+# save PQTM params to flash
+$PQTMSAVEPAR*5A
+# reboot module
+$PAIR023*3B
+
+# GGA, GLL, GSA, GSV, RMC and VTG messages are output by default.
+# turn off GLL messages (Geographic Position – Latitude and Longitude) (don't turn off, just for information)
+//$PAIR062,1,0*3F
+# turn off GSA messages (GNSS DOP and Active Satellites) (don't turn off, just for information)
+$PAIR062,2,0 *3C
+# turn off GSV messages (GNSS Satellites in View) (don't turn off, just for information)
+//$PAIR062,3,0*3D
+# turn off VTG messages (Course Over Ground & Ground Speed) (don't turn off, just for information)
+//$PAIR062,5,0*3B
+# Enable NMEA GGA message (Global Positioning System Fix Data) (anyway default enabled)
+//$PAIR062,0,1*0F
+# Enable RMC message (Recommended Minimum Specific GNSS Data)
+$PAIR062,4,1*3B
+
+# Sets the constellation configuration (GPS + GLONASS + Galileo + BDS)
+$PQTMCFGCNST,W,1,1,1,1,0,0*2B
+# set decimal precision for NMEA
+$PQTMCFGNMEADP,W,3,6,3,2,3,2*37
+# set pos output interval to 200 ms (5Hz)
+$PAIR050,200*21
+# save PQTM params to flash
+$PQTMSAVEPAR*5A
+# reboot module
+$PAIR023*3B
+
+
+Other:
+UART speed:
+$PAIR864,<Port_Type>,<Port_Index>,<Baudrate>*<Checksum><CR><LF>
+115200:
+$PAIR864,0,0,115200*1B
+460800:
+$PAIR864,0,0,460800*16
+Check:
+$PAIR865,0,0*31
+answer
+$PAIR001,865,0*30
+$PAIR865,460800*17
+
+Read constellation configurations:
+$PQTMCFGCNST,R*2E
+answer like
+$PQTMCFGCNST,OK,1,1,1,1,0,0*78
+$PQTMCFGCNST,OK,1,1,1,1,1,0*79
+
+FIXRATE:
+10 Hz = 100 ms 2 Hz = 500 ms 5 Hz = 200 ms 1 Hz = 1000 ms
+$PQTMCFGFIXRATE,W,1000*59
+$PQTMCFGFIXRATE,W,200*6A
+$PQTMCFGFIXRATE,W,100*69
+$PQTMCFGFIXRATE,W,500*6D
+$PQTMCFGFIXRATE,R*71     Queries the setting of current FIXRATE
+
+
+# Check entered coordinates:
+$PQTMCFGSVIN,R*26
+
+# Check Firmware:
+$PQTMVERNO*58
+answer
+$PQTMVERNO,LC29HEANR11A03S_RSA,2023/10/31,16:52:14*2B
