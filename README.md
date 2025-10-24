@@ -1,3 +1,47 @@
+# LC29HEA Project
+
+We are working on an alternative project that uses the **Quectel LC29HEA GNSS module**.  
+The goal is to enable RTK (Real-Time Kinematic) positioning by connecting the LC29H to an **NTRIP caster** to receive correction data.
+
+---
+
+## 🧩 Overview
+
+To achieve this, we use an **ESP32 module**, and the corresponding firmware can be found in the [`esp32_rtk`](./esp32_rtk) folder.  
+*(Note: The comments in the source code are currently in Estonian.)*
+
+The **Sunray codebase** has been extended with a dedicated **LC29H driver** that parses NMEA messages.  
+This should be compatible with the existing Sunray functionality.
+
+Initially, we attempted to modify the Skytraq driver, but it turned out that this approach does not work — as far as we understand, it’s technically not supported for the LC29HEA module.
+
+---
+
+## ⚙️ Configuration
+
+Additional documentation for configuring the LC29HEA as both a **base station** and a **rover** can be found in the [`doc`](./doc) folder.
+
+The key updated components required to make it work are located in:
+- `sunray/config.h`
+- `sunray/src/lc29h/`
+
+---
+
+## 💻 ESP32 and BLE
+
+The [`esp32_ble`](./esp32_ble) project has been updated for better **VSCode integration**, and now compiles cleanly.
+
+Because the LC29H communicates using **standard NMEA sentences**, this solution is expected to be much more **universal and compatible** with other GNSS systems.
+
+---
+
+## 🔄 Reboot Command Support
+
+We have also implemented support for the **LC29H and ESP32 reboot command**:
+
+
+
+
 # Sunray firmware
 
 # Table of contents
