@@ -26,14 +26,16 @@ $PAIR436,1*26
 # Enable NMEA GGA message
 $PAIR062,0,01*0F
 # set base location in XYZ coords (Eiffel tower)
-$PQTMCFGSVIN,W,2,0,0,4200968.566,168330.122,4780131.702*28
+$PQTMCFGSVIN,W,2,0,0,4200968.566,168330.122,4780131.702*08
 # save PQTM params to flash
 $PQTMSAVEPAR*5A # save PQTM params to flash
 # reboot module
 $PAIR023*3B
+...
+Done
 
 
-Rover:
+Rover: Messages we need to Rover GGA, RMC, GSA, GSV and $PQTMEPE
 # Clear the current configuration and restore the default settings set via $PAIR
 $PAIR514*3A
 # clear all data
@@ -46,32 +48,33 @@ $PQTMCFGRCVRMODE,W,1*2A
 $PQTMSAVEPAR*5A
 # reboot module
 $PAIR023*3B
-
 # GGA, GLL, GSA, GSV, RMC and VTG messages are output by default.
 # turn off GLL messages (Geographic Position – Latitude and Longitude) (don't turn off, just for information)
-//$PAIR062,1,0*3F
+$PAIR062,1,0*3F
 # turn off GSA messages (GNSS DOP and Active Satellites) (don't turn off, just for information)
-$PAIR062,2,0 *3C
+//$PAIR062,2,0 *3C
 # turn off GSV messages (GNSS Satellites in View) (don't turn off, just for information)
 //$PAIR062,3,0*3D
 # turn off VTG messages (Course Over Ground & Ground Speed) (don't turn off, just for information)
-//$PAIR062,5,0*3B
+$PAIR062,5,0*3B
 # Enable NMEA GGA message (Global Positioning System Fix Data) (anyway default enabled)
 //$PAIR062,0,1*0F
 # Enable RMC message (Recommended Minimum Specific GNSS Data)
-$PAIR062,4,1*3B
-
+//$PAIR062,4,1*3B
+# Set the output rate of $PQTMEPE message to once every position fix
+$PQTMCFGMSGRATE,W,PQTMEPE,1,2*1D
 # Sets the constellation configuration (GPS + GLONASS + Galileo + BDS)
-$PQTMCFGCNST,W,1,1,1,1,0,0*2B
+//$PQTMCFGCNST,W,1,1,1,1,0,0*2B
 # set decimal precision for NMEA
-$PQTMCFGNMEADP,W,3,6,3,2,3,2*37
-# set pos output interval to 200 ms (5Hz)
-$PAIR050,200*21
+//$PQTMCFGNMEADP,W,3,6,3,2,3,2*37
+# FIXRATE 1Hz
+$PQTMCFGFIXRATE,W,1000*59
 # save PQTM params to flash
 $PQTMSAVEPAR*5A
 # reboot module
 $PAIR023*3B
-
+...
+Done
 
 Other:
 UART speed:
@@ -101,10 +104,30 @@ $PQTMCFGFIXRATE,W,500*6D
 $PQTMCFGFIXRATE,R*71     Queries the setting of current FIXRATE
 
 
-# Check entered coordinates:
+# Check entered coordinates (Base station):
 $PQTMCFGSVIN,R*26
 
 # Check Firmware:
 $PQTMVERNO*58
 answer
 $PQTMVERNO,LC29HEANR11A03S_RSA,2023/10/31,16:52:14*2B
+
+Set the output rate of $PQTMEPE message to once every position fix:
+$PQTMCFGMSGRATE,W,PQTMEPE,1,2*1D
+
+$PQTMCFGMSG,PQTMEPE,<port>,<rate>,0,0,0*CS
+
+Example
+1Hz (every cycle):
+$PQTMCFGMSG,PQTMEPE,1,1,0,0,0*32
+
+5 Hz :
+$PQTMCFGMSG,PQTMEPE,1,5,0,0,0*3B
+
+Turn PQTMEPE messages off
+$PQTMCFGMSG,PQTMEPE,1,0,0,0,0*3D
+
+Argo koordinaadid:
+$PQTMCFGSVIN,OK,2,0,0.0,2970779.2660,1499746.9870,5422969.4840*4C
+
+

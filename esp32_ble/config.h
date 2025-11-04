@@ -62,8 +62,8 @@
 #define WIFI_STATIC_IP_DNS1   8,8,8,8
 #define WIFI_STATIC_IP_DNS2   8,8,4,4
 
-#define WIFI_STA_SSID   ""      // WiFi SSID      (leave empty ("") to not use WiFi)
-#define WIFI_STA_PSK    ""  // WiFi password  (leave empty ("") to not use WiFi)
+#define WIFI_STA_SSID   "WIFI_SSID"      // WiFi SSID      (leave empty ("") to not use WiFi)
+#define WIFI_STA_PSK    "WIFI_PASSWORD"  // WiFi password  (leave empty ("") to not use WiFi)
 #define WIFI_TIMEOUT_FIRST_RESPONSE  800   // fast response times (500), for more reliable choose: 800     
 #define WIFI_TIMEOUT_RESPONSE        400   // fast response times (100), for more reliable choose: 400
 
@@ -94,8 +94,8 @@
 #define MQTT_HOSTNAME   "192.168.1.137"  // IP or hostname (example: "192.168.2.60")
 #define MQTT_PORT       1883
 #define MQTT_CLIENT_ID  NAME
-#define MQTT_USERNAME   "mqtt"
-#define MQTT_PASSWORD   "MQTT"
+#define MQTT_USERNAME   "MQTT_USERNAME"
+#define MQTT_PASSWORD   "MQTT_PASSWORD"
 
 #define ENCRYPTION_PASSWORD   123456
 #define ENCRYPTION_ENABLED    false

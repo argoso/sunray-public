@@ -1,39 +1,45 @@
 #ifndef LC29H_H
 #define LC29H_H
 
-#include "Arduino.h"			
+#include "Arduino.h"
+#include <math.h>
 #include "../../gps.h"
 #include "../driver/RobotDriver.h"
+#include "lc29h_parser.h"
 
 class LC29H : public GpsDriver {
   public:
-    LC29H();    
+    LC29H();
+
+    // Ühendused
     void begin(Client &client, char *host, uint16_t port) override;
     void begin(HardwareSerial& bus,uint32_t baud) override;
     void run() override;
-    bool configure() override;  
+    bool configure() override;
     void reboot() override;
-    void send(const uint8_t *buffer, size_t size) override;  
+    void send(const uint8_t *buffer, size_t size) override;
     void sendRTCM(const uint8_t *buffer, size_t size) override;
+
     unsigned long getGpsAge();
 
-    // Lisa get-funktsioonid comm.cpp jaoks (ILMA OVERRIDETA)
-    double getRelPosN() { return relPosN; }
-    double getRelPosE() { return relPosE; }
-    double getRelPosD() { return relPosD; }
-    unsigned long getITOW() { return iTOW; }
-    double getDgpsAge() { return dgpsAge; }
-    int getNumSVDgps() { return numSVdgps; }
-    int getChksumErrorCounter() { return chksumErrorCounter; }
-    int getDgpsChecksumErrorCounter() { return dgpsChecksumErrorCounter; }
-    int getDgpsPacketCounter() { return dgpsPacketCounter; }
-    double getAccuracy() { return accuracy; }
-    double getRtkRatio() { 
-      if (numSV == 0) return 0.0;
-      return (double)numSVdgps / (double)numSV; 
-    }
+    // --- Getterid (säilitame olemasoleva API) ---
+    double getRelPosN()            { return parser.getRelPosN(); }
+    double getRelPosE()            { return parser.getRelPosE(); }
+    double getRelPosD()            { return parser.getRelPosD(); }
+    unsigned long getITOW()        { return parser.getITOW(); }
+    double getDgpsAge()            { return parser.getDgpsAge(); }
+    int getNumSVDgps()             { return parser.getNumSVDgps(); }
+    int getChksumErrorCounter()    { return chksumErrorCounter; }          // checksum loogika on driveris
+    int getDgpsChecksumErrorCounter() { return dgpsChecksumErrorCounter; } // ei kasutata siin – säilitame API
+    int getDgpsPacketCounter()     { return parser.getDgpsPacketCounter(); }
 
-    // Lisa need muutujad
+    double getAccuracy()           { return parser.getAccuracy(); }        // EPE_2D (m)
+    double getProtectionLevel()    { return parser.getProtectionLevel(); } // PL (m)
+    double getHdop()               { return parser.getHdop(); }
+    double getRtkRatio()           { return parser.getRtkRatio(); }
+
+    // --- Avalikud väljad ühilduvuse nimel (täidetakse run() käigus parserist) ---
+    // NB: need dubleerivad parseri seisu; jäetud alles, sest muu kood võib neid otseselt kasutada.
     double relPosN = 0;
     double relPosE = 0;
     double relPosD = 0;
@@ -41,23 +47,27 @@ class LC29H : public GpsDriver {
     double dgpsAge = 0;
     int numSVdgps = 0;
     int chksumErrorCounter = 0;
-    int dgpsChecksumErrorCounter = 0;
+    int dgpsChecksumErrorCounter = 0; // jätame nulli (checksum DGPS paketile kui kunagi vaja)
     int dgpsPacketCounter = 0;
-    double accuracy = 0;
+    double accuracy = NAN;
+    double protectionLevel = NAN;
+    double lat = 0;
+    double lon = 0;
+    double height = 0;
+    int    numSV = 0;
+    SolType solution = SOL_INVALID;
+
 
   private:
-    uint32_t _baud;  	
-    HardwareSerial* _bus;
-    Client* _client;
-    bool useTCP;
-    unsigned long lastValidDataTime;
-    int activeSats = 0; // Aktiivsete satelliitide arv GSA sõnumist
-    
-    void begin();
-    void parseNMEA(const String& nmea);
-    double convertNmeaToDecimal(const String& nmeaCoord, const String& dir);
-    void updateSolution(int quality);
-    void updateDGPSSatellites();
+    uint32_t _baud = 0;
+    HardwareSerial* _bus = nullptr;
+    Client* _client = nullptr;
+    bool useTCP = false;
+
+    LC29HParser parser;
+
+    void beginInternal();
+    void syncFromParser(); // peegeldab parseri seisud avalikesse väljadesse
 };
 
 #endif
