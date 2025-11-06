@@ -54,7 +54,9 @@
 #include "events.h"
 
 // #define I2C_SPEED  10000
-#define _BV(x) (1 << (x))
+#ifndef _BV
+#define _BV(x) (1U << (x))
+#endif
 
 const signed char orientationMatrix[9] = {
   1, 0, 0,
@@ -703,10 +705,10 @@ void start(){
   //maps.clipperTest();
     
   // initialize ESP module
-  startWIFI();
+/*   startWIFI();
   #ifdef ENABLE_NTRIP
     ntrip.begin(&gps);  
-  #endif
+  #endif */
   
   watchdogEnable(15000L);   // 15 seconds  
   
@@ -1062,6 +1064,28 @@ void run(){
   }
 
   gps.run();
+
+#ifdef GPS_LC29H
+  // Kontrolli, kas GPS on ühendatud ja voog töötab (ärme lõpeta run() tsüklit)
+  const bool gpsOk = gps.isPresent() && (gps.getHwState() == LC29H::GPS_HW_STREAMING);
+  if (!gpsOk) {
+    static unsigned long lastWarn = 0;
+    if (millis() - lastWarn > 5000) {
+      lastWarn = millis();
+      CONSOLE.println("LC29H GPS not found! (degraded mode)");
+    }
+    // Degrade: märgi lahendus kehtetuks, et naviloogika ei kasuta GPS-i
+    gps.solution = SOL_INVALID;
+    gps.solutionAvail = false;
+    // Kui nõutud kehtiv GPS, mine veasse, kuid ÄRA lõpeta tsüklit
+    #if REQUIRE_VALID_GPS
+      if (stateOp != OP_ERROR && stateOp != OP_IDLE && stateOp != OP_CHARGE){
+        stateSensor = SENS_GPS_INVALID;
+        setOperation(OP_ERROR, false);
+      }
+    #endif
+  }
+#endif
 
 
   if (millis() > nextTimetableTime){

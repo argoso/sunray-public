@@ -25,7 +25,7 @@ unsigned long bleConnectedTimeout = 0;
 
 String BLEConfig::read(){
   String res;    
-  unsigned long timeout = millis() + 2000;  
+  unsigned long timeout = millis() + 500;  
   while (millis() < timeout){
     while (BLE.available()){
       timeout = millis() + 200; 
@@ -40,7 +40,7 @@ String BLEConfig::read(){
 String BLEConfig::exec(String cmd, bool doRetry){
   String res;
   delay(500);    
-  for (int retry=0; retry < 3; retry++){
+  for (int retry=0; retry < 1; retry++){
     CONSOLE.print("BLE: ");
     CONSOLE.print(cmd);
     BLE.print(cmd);
@@ -63,8 +63,8 @@ void BLEConfig::run(){
       switch(i){
         /*case 0: baud=1200; break;  
         case 1: baud=2400; break;  
-        case 2: baud=4800; break;  */
-        case 3: baud=9600; break;  
+        case 2: baud=4800; break;  
+        case 3: baud=9600; break;  */
         //case 4: baud=19200; break;  
         //case 5: baud=38400; break;  
         //case 6: baud=57600; break;  

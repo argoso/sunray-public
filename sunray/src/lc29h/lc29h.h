@@ -10,6 +10,10 @@
 class LC29H : public GpsDriver {
   public:
     LC29H();
+    // Riistvaraseisu jälgimine
+    enum GpsHwState { GPS_HW_DISCONNECTED, GPS_HW_NO_DATA, GPS_HW_STREAMING };
+
+
 
     // Ühendused
     void begin(Client &client, char *host, uint16_t port) override;
@@ -21,6 +25,12 @@ class LC29H : public GpsDriver {
     void sendRTCM(const uint8_t *buffer, size_t size) override;
 
     unsigned long getGpsAge();
+
+    // UUS: GPS riistvaraseis ja tervise getterid
+    bool isPresent() const { return modulePresent; }
+    GpsHwState getHwState() const { return hwState; }
+    unsigned long lastByteAge() const { return lastByteAt ? (millis() - lastByteAt) : (unsigned long)0; }
+    unsigned long lastSentenceAge() const { return lastSentenceAt ? (millis() - lastSentenceAt) : (unsigned long)0; }
 
     // --- Getterid (säilitame olemasoleva API) ---
     double getRelPosN()            { return parser.getRelPosN(); }
@@ -68,6 +78,13 @@ class LC29H : public GpsDriver {
 
     void beginInternal();
     void syncFromParser(); // peegeldab parseri seisud avalikesse väljadesse
+
+    // --- UUS: ühenduse tuvastuse raamistik ---
+    volatile bool modulePresent = false;
+    GpsHwState hwState = GPS_HW_DISCONNECTED;
+    unsigned long startupDetectDeadline = 0;
+    unsigned long lastByteAt = 0;
+    unsigned long lastSentenceAt = 0;
 };
 
 #endif

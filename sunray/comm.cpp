@@ -628,7 +628,14 @@ void cmdSummary(){
   s += ",";
   s += maps.mowPointsIdx;
   s += ",";
-  s += (millis() - gps.dgpsAge)/1000.0;
+  
+if (gps.dgpsAge > 0) { 
+  unsigned long ageMs = millis() - gps.dgpsAge;
+  s += (ageMs / 1000.0);
+} else {
+  s += 0;
+}
+
   s += ",";
   s += stateSensor;
   s += ",";
@@ -636,7 +643,15 @@ void cmdSummary(){
   s += ",";
   s += maps.targetPoint.y();  
   s += ",";
-  s += gps.accuracy;  
+#ifdef GPS_LC29H
+  if (!gps.isPresent() || gps.getHwState() != LC29H::GPS_HW_STREAMING) {
+    s += 888; // no gps (keep CSV schema)
+  } else {
+    s += gps.accuracy;
+  }
+#else
+  s += gps.accuracy;
+#endif  
   s += ",";
   s += gps.numSV;  
   s += ",";
@@ -694,7 +709,7 @@ void cmdStats(){
   s += ",";
   s += gps.chksumErrorCounter;
   s += ",";
-  //s += ((float)gps.dgpsChecksumErrorCounter) / ((float)(gps.dgpsPacketCounter));
+  s += ((float)gps.dgpsChecksumErrorCounter) / ((float)(gps.dgpsPacketCounter));
   s += gps.dgpsChecksumErrorCounter;
   s += ",";
   s += statMaxControlCycleTime;

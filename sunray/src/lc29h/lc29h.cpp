@@ -21,6 +21,13 @@ LC29H::LC29H() {
   dgpsPacketCounter = 0;
   accuracy = NAN;
   protectionLevel = NAN;
+  // ühenduse tuvastus
+  modulePresent = false;
+  hwState = GPS_HW_DISCONNECTED;
+  startupDetectDeadline = 0;
+  lastByteAt = 0;
+  lastSentenceAt = 0;
+
 }
 
 void LC29H::beginInternal() {
@@ -30,9 +37,19 @@ void LC29H::beginInternal() {
   this->accuracy = NAN;
   this->protectionLevel = NAN;
 
-  if (GPS_CONFIG) {
+  
+  // anna moodulile pisut aega ennast väljareklaamida
+  startupDetectDeadline = millis() + 2000UL; // 2 s aken
+  modulePresent = false;
+  hwState = GPS_HW_NO_DATA;
+  lastByteAt = 0;
+  lastSentenceAt = 0;
+if (GPS_CONFIG) {
     configure();
   }
+
+  // Kui siia jõudsime ja baiti tuli, siis voog töötab
+  hwState = GPS_HW_STREAMING;
 }
 
 void LC29H::begin(HardwareSerial& bus,uint32_t baud) {
@@ -73,6 +90,9 @@ void LC29H::reboot() {
   } else if (useTCP && _client) {
     CONSOLE.println("TCP mode - cannot send reboot command");
   }
+
+  // Kui siia jõudsime ja baiti tuli, siis voog töötab
+  hwState = GPS_HW_STREAMING;
 }
 
 void LC29H::send(const uint8_t *buffer, size_t size) {
@@ -164,6 +184,9 @@ void LC29H::syncFromParser() {
       stateY = (float)north;
     }
   }
+
+  // Kui siia jõudsime ja baiti tuli, siis voog töötab
+  hwState = GPS_HW_STREAMING;
 }
 
 
@@ -182,7 +205,24 @@ void LC29H::run() {
   }
 
   Stream *stream = useTCP ? (Stream*)_client : (Stream*)_bus;
-  if (!stream || !stream->available()) return;
+  if (!stream) {
+    hwState = GPS_HW_DISCONNECTED;
+    return;
+  }
+
+  // kui 2 s jooksul ei näe ühtki baiti, märgi DISCONNECTED
+  if (!modulePresent && startupDetectDeadline && (millis() > startupDetectDeadline) && (lastByteAt == 0)) {
+    hwState = GPS_HW_DISCONNECTED;
+  }
+
+  if (!stream->available()) {
+    // pole hetkel baite — uuenda riistvaraseisu vanuse põhjal
+    if (modulePresent) {
+      const unsigned long age = millis() - lastByteAt;
+      if (age > 3000UL) hwState = GPS_HW_NO_DATA; // >3s vaikust = NO_DATA
+    }
+    return;
+  }
 
   auto shouldParse = [](const String& s)->bool {
     return (
@@ -204,6 +244,11 @@ void LC29H::run() {
 
   while (stream->available()) {
     char c = stream->read();
+    lastByteAt = millis();
+    if (!modulePresent) {
+      modulePresent = true;
+      CONSOLE.println("LC29H GPS module found");
+    }
 
     if ((c >= 32 && c <= 126) || c == '\r' || c == '\n') {
       nmeaBuffer += c;
@@ -215,6 +260,7 @@ void LC29H::run() {
 
       if (nmeaBuffer.length() > 6 && nmeaBuffer[0] == '$') {
         const int starIndex = nmeaBuffer.lastIndexOf('*');
+        lastSentenceAt = millis();
 
         // ---- LENIENT kontrollsumma käsitlus ----
         if (starIndex > 0 && nmeaBuffer.length() >= starIndex + 3) {
@@ -257,4 +303,6 @@ void LC29H::run() {
 
     if (nmeaBuffer.length() > 600) nmeaBuffer = "";
   }
+
+  hwState = GPS_HW_STREAMING;
 }
