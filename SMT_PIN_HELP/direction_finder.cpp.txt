@@ -1,0 +1,383 @@
+// mc33035_fwdrev_full.cpp
+#include <Arduino.h>
+
+// --- Konsool USART1 (PA9 TX, PA10 RX) ---
+HardwareSerial Console(USART1);
+
+// -----------------------------
+// Pin map ja excluded pins
+// -----------------------------
+struct PinEntry { int pin; const char* name; };
+struct ExcludedPin { int pin; const char* reason; };
+
+const PinEntry pinMap[] = {
+  {PA0,"PA0"},{PA1,"PA1"},{PA2,"PA2"},{PA3,"PA3"},{PA4,"PA4"},{PA5,"PA5"},{PA6,"PA6"},{PA7,"PA7"},
+  {PA8,"PA8"},{PA9,"PA9"},{PA10,"PA10"},{PA11,"PA11"},{PA12,"PA12"},{PA13,"PA13"},{PA14,"PA14"},{PA15,"PA15"},
+  {PB0,"PB0"},{PB1,"PB1"},{PB2,"PB2"},{PB3,"PB3"},{PB4,"PB4"},{PB5,"PB5"},{PB6,"PB6"},{PB7,"PB7"},
+  {PB8,"PB8"},{PB9,"PB9"},{PB10,"PB10"},{PB11,"PB11"},{PB12,"PB12"},{PB13,"PB13"},{PB14,"PB14"},{PB15,"PB15"},
+  {PC0,"PC0"},{PC1,"PC1"},{PC2,"PC2"},{PC3,"PC3"},{PC4,"PC4"},{PC5,"PC5"},{PC6,"PC6"},{PC7,"PC7"},
+  {PC8,"PC8"},{PC9,"PC9"},{PC10,"PC10"},{PC11,"PC11"},{PC12,"PC12"},{PC13,"PC13"},{PC14,"PC14"},{PC15,"PC15"},
+  {PD0,"PD0"},{PD1,"PD1"},{PD2,"PD2"},{PD3,"PD3"},{PD4,"PD4"},{PD5,"PD5"},{PD6,"PD6"},{PD7,"PD7"},
+  {PD8,"PD8"},{PD9,"PD9"},{PD10,"PD10"},{PD11,"PD11"},{PD12,"PD12"},{PD13,"PD13"},{PD14,"PD14"},{PD15,"PD15"},
+  {PE0,"PE0"},{PE1,"PE1"},{PE2,"PE2"},{PE3,"PE3"},{PE4,"PE4"},{PE5,"PE5"},{PE6,"PE6"},{PE7,"PE7"},
+  {PE8,"PE8"},{PE9,"PE9"},{PE10,"PE10"},{PE11,"PE11"},{PE12,"PE12"},{PE13,"PE13"},{PE14,"PE14"},{PE15,"PE15"},
+  {PF0,"PF0"},{PF1,"PF1"},{PF2,"PF2"},{PF3,"PF3"},{PF4,"PF4"},{PF5,"PF5"},{PF6,"PF6"},{PF7,"PF7"},
+  {PF8,"PF8"},{PF9,"PF9"},{PF10,"PF10"},{PF11,"PF11"},{PF12,"PF12"},{PF13,"PF13"},{PF14,"PF14"},{PF15,"PF15"}
+};
+const int totalPinCount = sizeof(pinMap) / sizeof(pinMap[0]);
+
+const ExcludedPin excludedPins[] = {
+  {PA9,  "Console TX"},
+  {PA10, "Console RX"},
+  {PB6,  "I2C1 SCL"},
+  {PB7,  "I2C1 SDA"},
+  {PB10, "I2C2 SCL"},
+  {PB11, "I2C2 SDA"},
+  {PD3,  "BUZZER/ALARM"},
+  {PC8,  "Main ENABLE"},
+  {PF2,  "Left ENABLE"},
+  {PA4,  "Left PWM (OP IN+)"},
+  {PF3,  "Left DIR"},
+  {PF8,  "Right ENABLE"},
+  {PF9,  "Right DIR"},
+  {PA5,  "Right PWM (OP IN+)"},
+  {PF13,  "Mow ENABLE"},
+  {PF14,  "Mow DIR"}//,
+  //{PA,  "Mow PWM (OP IN+)"}
+};
+const int excludedCount = sizeof(excludedPins) / sizeof(excludedPins[0]);
+
+// -----------------------------
+// Skannimise olek ja parameetrid
+// -----------------------------
+enum ScanState { SCAN, PAUSED, STOPPED };
+ScanState scanState = SCAN;
+
+int currentIndex = 0;
+bool stopFlag = false;
+
+const unsigned long tHigh = 1500;       // 1.5s HIGH
+const unsigned long tLow  = 1500;       // 1.5s LOW
+const unsigned long safetyDisableMs = 200; // PF2 LOW time
+const unsigned long safetyReenableMs = 100; // PF2 stabilization
+const int motorPWMvalue = 50;           // PWM väärtus (0..255), vastavalt soovi
+
+// Leitud pinide hoidmine
+struct Found { String name; String note; };
+Found foundPins[256];
+int foundCount = 0;
+
+// -----------------------------
+// Abifunktsioonid
+// -----------------------------
+String getPinName(int pin) {
+  for (int i = 0; i < totalPinCount; ++i) if (pinMap[i].pin == pin) return String(pinMap[i].name);
+  return String("?");
+}
+
+int getPinByName(String name) {
+  name.trim();
+  name.toUpperCase();
+  name.replace("\r", "");
+  name.replace("\n", "");
+  for (int i = 0; i < totalPinCount; ++i) if (name == pinMap[i].name) return pinMap[i].pin;
+  return -1;
+}
+
+int getPinIndex(int pin) {
+  for (int i = 0; i < totalPinCount; ++i) if (pinMap[i].pin == pin) return i;
+  return -1;
+}
+
+bool isExcluded(int pin) {
+  for (int i = 0; i < excludedCount; ++i) if (excludedPins[i].pin == pin) return true;
+  return false;
+}
+
+const char* exclusionReason(int pin) {
+  for (int i = 0; i < excludedCount; ++i) if (excludedPins[i].pin == pin) return excludedPins[i].reason;
+  return "";
+}
+
+void printFoundPins() {
+  Console.println();
+  Console.println("LEITUD PINID:");
+  Console.println("========================================");
+  if (foundCount == 0) {
+    Console.println("  (veel pole midagi leitud)");
+  } else {
+    for (int i = 0; i < foundCount; ++i) {
+      Console.print("  ");
+      Console.print(i + 1);
+      Console.print(". ");
+      Console.print(foundPins[i].name);
+      Console.print("  - ");
+      Console.println(foundPins[i].note);
+    }
+  }
+  Console.println("========================================");
+  Console.println();
+}
+
+// -----------------------------
+// Mootori ettevalmistus
+// PF2 = Left ENABLE
+// PC8 = ALL ENABLE
+// PA4 = PWM (OP IN+)
+// -----------------------------
+void setupMotor() {
+  pinMode(PC8, OUTPUT);
+  pinMode(PF2, OUTPUT);
+  pinMode(PA4, OUTPUT);
+
+  digitalWrite(PC8, HIGH);      // All enable HIGH
+  digitalWrite(PF2, HIGH);      // Left enable initially HIGH
+  analogWrite(PA4, motorPWMvalue); // PWM set to 50
+}
+
+// -----------------------------
+// Üksiku pin testi funktsioon (ohutusega PF2 toggle enne testi)
+// -----------------------------
+void performSafetyCycle() {
+  // Lülita vasak mootor ajutiselt välja
+  digitalWrite(PF8, LOW);
+  delay(safetyDisableMs);
+  digitalWrite(PF8, HIGH);
+  delay(safetyReenableMs);
+}
+
+void testPinCycle(int pin) {
+  // Test pin: HIGH -> wait -> LOW -> wait
+  pinMode(pin, OUTPUT);
+
+  Console.println();
+  Console.print("Testin pinni: ");
+  Console.println(getPinName(pin));
+
+  Console.println("  [1] HIGH (1.5s) ... jälgi suuna muutust");
+  digitalWrite(pin, HIGH);
+  delay(tHigh);
+
+  Console.println("  [2] LOW (1.5s) ... jälgi suuna taastumist");
+  digitalWrite(pin, LOW);
+  delay(tLow);
+
+  Console.println("  >> Test lõppes!");
+  Console.println();
+}
+
+// -----------------------------
+// Manuaalne pin test (käsk 'm')
+// -----------------------------
+void manualPinTest() {
+  Console.println();
+  Console.println("========================================");
+  Console.println("MANUAALNE PIN TEST");
+  Console.println("Sisesta pin nimi (näited: PA4, PB3) või ENTER tagasiminekuks:");
+  Console.println("========================================");
+  Console.print("> ");
+
+  // Oota sisendit rea lõppemiseni
+  String input = "";
+  while (true) {
+    while (!Console.available()) {
+      delay(5);
+    }
+    input = Console.readStringUntil('\n');
+    input.trim();
+    break;
+  }
+
+  if (input.length() == 0) {
+    Console.println("Tagasi.");
+    return;
+  }
+
+  input.toUpperCase();
+
+  int p = getPinByName(input);
+  if (p == -1) {
+    Console.println("Tundmatu pin!");
+    return;
+  }
+
+  if (isExcluded(p)) {
+    Console.print("Pin ");
+    Console.print(input);
+    Console.print(" on välistatud: ");
+    Console.println(exclusionReason(p));
+    return;
+  }
+
+  Console.print("Valitud pin: ");
+  Console.println(input);
+
+  // Ohutus: enne testimist lühike disable/enable
+  Console.println("Ohutus: PF2 LOW -> HIGH");
+  digitalWrite(PF8, LOW);
+  delay(safetyDisableMs);
+  digitalWrite(PF8, HIGH);
+  delay(safetyReenableMs);
+
+  // Test
+  testPinCycle(p);
+
+  // Pärast manuaalset testi jätkame automaatsega, skannimise olek ei muutu
+}
+
+// -----------------------------
+// Skannimisrežiim (automaatselt läbib pinid)
+// -----------------------------
+void scanPins() {
+  if (currentIndex >= totalPinCount) {
+    Console.println("\n>>> Kõik pinid on testitud! <<<\n");
+    scanState = STOPPED;
+    return;
+  }
+
+  int pin = pinMap[currentIndex].pin;
+
+  // Kui välistatud, näita ja liigu edasi
+  if (isExcluded(pin)) {
+    Console.print("Jätan vahele ");
+    Console.print(getPinName(pin));
+    Console.print(" - ");
+    Console.println(exclusionReason(pin));
+    currentIndex++;
+    return;
+  }
+
+  // Ohutus: enne uue pinni testimist lülita vasak mootor lühidalt välja
+  Console.println("Ohutus: PF2 = LOW (disable) 200ms");
+  digitalWrite(PF8, LOW);
+  delay(safetyDisableMs);
+  Console.println("PF8 = HIGH (enable)");
+  digitalWrite(PF8, HIGH);
+  delay(safetyReenableMs);
+
+  // Tee test
+  Console.println("========================================");
+  Console.print("Testin PINI: ");
+  Console.print(getPinName(pin));
+  Console.print("  (");
+  Console.print(currentIndex + 1);
+  Console.print("/");
+  Console.print(totalPinCount);
+  Console.println(")");
+  Console.println("========================================");
+
+  testPinCycle(pin);
+
+  // Pärast testi küsime, et kasutaja märkaks suuna muutust.
+  Console.println("Kui leidsid õige pinni, vajuta 's'. Jätkamiseks vajuta 'n'. Paus: 'p'. Restart: 'r'.");
+
+  // Märgista see testitud pin kui ei vajutata STOP-i (STOP salvestab eelneva)
+  currentIndex++;
+}
+
+// -----------------------------
+// Seriaalkäsud (s,n,p,r,m,e)
+// -----------------------------
+void processSerialCommand(char c) {
+  switch (c) {
+    case 's': case 'S':
+      // STOP — märgi eelmine testitud pin kui olemas
+      Console.println("\n>>> STOP: leidsid õige pinni!");
+      stopFlag = true;
+      scanState = STOPPED;
+      if (currentIndex > 0) {
+        int idx = currentIndex - 1;
+        foundPins[foundCount].name = getPinName(pinMap[idx].pin);
+        foundPins[foundCount].note = "FOUND by user";
+        foundCount++;
+      } else {
+        Console.println("  (pole eelnevat pin'i salvestamiseks)");
+      }
+      printFoundPins();
+      break;
+
+    case 'n': case 'N':
+      // NEXT: jätka järgmisega
+      Console.println(">>> NEXT: jätkan järgmisega.");
+      scanState = SCAN;
+      stopFlag = false;
+      break;
+
+    case 'p': case 'P':
+      // PAUSE
+      Console.println(">>> PAUSE: skannimine peatatud.");
+      scanState = PAUSED;
+      break;
+
+    case 'r': case 'R':
+      // RESTART
+      Console.println(">>> RESTART: alustame algusest.");
+      currentIndex = 0;
+      stopFlag = false;
+      scanState = SCAN;
+      break;
+
+    case 'm': case 'M':
+      // MANUAL
+      manualPinTest();
+      break;
+
+    case 'e': case 'E':
+      // INFO: näita leitud
+      printFoundPins();
+      break;
+
+    default:
+      Console.println("KASUTUS: s=STOP, n=NEXT, p=PAUSE, r=RESTART, m=MANUAL, e=INFO");
+      break;
+  }
+}
+
+// -----------------------------
+// Setup ja Loop
+// -----------------------------
+void setup() {
+  Console.begin(115200);
+  delay(200);
+
+  Console.println();
+  Console.println("=======================================");
+  Console.println("MC33035 FORWARD/REVERSE PIN FINDER");
+  Console.println("=======================================");
+  Console.println("Mootori ettevalmistus: PC8=HIGH, PF2=HIGH, PA4=PWM=50");
+  Console.println("Test: TestPin HIGH 1.5s -> LOW 1.5s");
+  Console.println("Ohutus: enne iga testi PF2 = LOW (200ms) -> PF2 = HIGH");
+  Console.println();
+  Console.println("Käsud: s=STOP, n=NEXT, p=PAUSE, r=RESTART, m=MANUAL, e=INFO");
+  Console.println();
+
+  // Näita excluded pinde
+  Console.println("Excluded pins:");
+  for (int i = 0; i < excludedCount; ++i) {
+    Console.print("  - ");
+    Console.print(getPinName(excludedPins[i].pin));
+    Console.print(": ");
+    Console.println(excludedPins[i].reason);
+  }
+  Console.println();
+
+  setupMotor();
+  scanState = SCAN;
+}
+
+void loop() {
+  // Serial käsud prioriteetselt
+  if (Console.available()) {
+    char c = (char)Console.read();
+    processSerialCommand(c);
+  }
+
+  // Kui skannimine aktiivne ja pole STOP, tee järgmine pin
+  if (scanState == SCAN && !stopFlag) {
+    scanPins();
+  } else if (scanState == PAUSED) {
+    delay(100);
+  } else if (scanState == STOPPED) {
+    delay(250);
+  }
+}

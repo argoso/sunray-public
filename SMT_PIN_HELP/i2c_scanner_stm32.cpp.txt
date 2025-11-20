@@ -1,0 +1,357 @@
+/*
+ * I2C Scanner for STM32F103ZE
+ * Otsib I2C seadmeid erinevatel pin kombinatsioonidel
+ * Eeldatavad seadmed: 2x MPU6500 IMU
+ */
+
+#include <Arduino.h>
+#include <Wire.h>
+
+HardwareSerial Serial1(PA10, PA9);  // Console @ 115200
+
+// I2C pin kombinatsioonid
+struct I2CConfig {
+  int sda;
+  int scl;
+  const char* name;
+};
+
+// Voimalikud I2C konfiguratsioonid
+I2CConfig i2cConfigs[] = {
+  {PB7, PB6, "I2C1 (PB7=SDA, PB6=SCL)"},
+  {PB7, PB8, "I2C1 (PB7=SDA, PB8=SCL)"},
+  {PB9, PB6, "I2C1 (PB9=SDA, PB6=SCL)"},
+  {PB9, PB8, "I2C1 (PB9=SDA, PB8=SCL)"},
+  {PB11, PB10, "I2C2 (PB11=SDA, PB10=SCL)"}
+};
+const int configCount = 5;
+
+// Tuntud I2C seadmed ja nende aadressid
+struct I2CDevice {
+  uint8_t address;
+  const char* name;
+};
+
+I2CDevice knownDevices[] = {
+  {0x68, "MPU6500/MPU6050/MPU9250 (IMU)"},
+  {0x69, "MPU6500/MPU6050/MPU9250 (ALT)"},
+  {0x76, "BMP280/BME280 (Pressure)"},
+  {0x77, "BMP280/BME280 (ALT)"},
+  {0x50, "AT24C32 (EEPROM)"},
+  {0x51, "AT24C32 (ALT)"},
+  {0x1E, "HMC5883L (Compass)"},
+  {0x0D, "AK8963 (Compass)"},
+  {0x28, "BNO055 (IMU)"},
+  {0x40, "HTU21D (Temp/Humidity)"},
+  {0x48, "ADS1115 (ADC)"},
+  {0x20, "MCP23017 (IO Expander)"}
+};
+const int knownDeviceCount = 12;
+
+String getPinName(int pin) {
+  if (pin == PB6) return "PB6";
+  if (pin == PB7) return "PB7";
+  if (pin == PB8) return "PB8";
+  if (pin == PB9) return "PB9";
+  if (pin == PB10) return "PB10";
+  if (pin == PB11) return "PB11";
+  return "UNKNOWN";
+}
+
+const char* getDeviceName(uint8_t address) {
+  for (int i = 0; i < knownDeviceCount; i++) {
+    if (knownDevices[i].address == address) {
+      return knownDevices[i].name;
+    }
+  }
+  return "Unknown device";
+}
+
+void scanI2CBus(TwoWire &wire, const char* busName) {
+  Serial1.print("\nSkaneerin ");
+  Serial1.print(busName);
+  Serial1.println("...");
+  Serial1.println("Aadressid: 0x00 - 0x7F\n");
+  
+  int deviceCount = 0;
+  
+  for (uint8_t address = 1; address < 127; address++) {
+    wire.beginTransmission(address);
+    uint8_t error = wire.endTransmission();
+    
+    if (error == 0) {
+      // Seade leitud!
+      deviceCount++;
+      Serial1.print("  [LEITUD] 0x");
+      if (address < 16) Serial1.print("0");
+      Serial1.print(address, HEX);
+      Serial1.print(" - ");
+      Serial1.println(getDeviceName(address));
+    }
+    else if (error == 4) {
+      Serial1.print("  [VIGA] 0x");
+      if (address < 16) Serial1.print("0");
+      Serial1.print(address, HEX);
+      Serial1.println(" - I2C viga!");
+    }
+    
+    delay(5);
+  }
+  
+  Serial1.println("\n----------------------------------");
+  if (deviceCount == 0) {
+    Serial1.println("Uhtegi seadet ei leitud!");
+  } else {
+    Serial1.print("Kokku leitud: ");
+    Serial1.print(deviceCount);
+    Serial1.println(" seadet");
+  }
+  Serial1.println("----------------------------------\n");
+}
+
+void testI2CConfig(int configIndex) {
+  I2CConfig config = i2cConfigs[configIndex];
+  
+  Serial1.println("\n========================================");
+  Serial1.print("TEST #");
+  Serial1.print(configIndex + 1);
+  Serial1.print(" / ");
+  Serial1.println(configCount);
+  Serial1.println("========================================");
+  Serial1.println(config.name);
+  Serial1.print("SDA: ");
+  Serial1.println(getPinName(config.sda));
+  Serial1.print("SCL: ");
+  Serial1.println(getPinName(config.scl));
+  Serial1.println("========================================");
+  
+  // Proovi kas saame I2C-d initsialiseerida
+  TwoWire *wire;
+  
+  // Kasuta I2C1 voi I2C2 olenevalt pinnidest
+  if (config.scl == PB10 || config.sda == PB11) {
+    // I2C2
+    wire = &Wire;  // Wire on tavaliselt I2C1, aga voime konfigureerida
+    Serial1.println("\nKasutan I2C2 siin...");
+  } else {
+    // I2C1
+    wire = &Wire;
+    Serial1.println("\nKasutan I2C1 siin...");
+  }
+  
+  // Initialiseeri I2C
+  wire->setSDA(config.sda);
+  wire->setSCL(config.scl);
+  wire->begin();
+  wire->setClock(100000);  // 100kHz standard mode
+  
+  delay(100);
+  
+  // Skaneeri
+  scanI2CBus(*wire, config.name);
+  
+  // Sulge I2C
+  wire->end();
+  
+  delay(500);
+}
+
+void quickScanAll() {
+  Serial1.println("\n========================================");
+  Serial1.println("KIIRE SKANEERIMINE - KOIK KONFID");
+  Serial1.println("========================================\n");
+  
+  for (int i = 0; i < configCount; i++) {
+    I2CConfig config = i2cConfigs[i];
+    
+    Serial1.print("Proovin: ");
+    Serial1.print(config.name);
+    Serial1.print(" ... ");
+    
+    TwoWire wire;
+    wire.setSDA(config.sda);
+    wire.setSCL(config.scl);
+    wire.begin();
+    wire.setClock(100000);
+    
+    delay(50);
+    
+    // Kiire test: vaata kas 0x68 (MPU6500) vastab
+    wire.beginTransmission(0x68);
+    uint8_t error = wire.endTransmission();
+    
+    if (error == 0) {
+      Serial1.println("[SEADE LEITUD!]");
+    } else {
+      Serial1.println("[tühi]");
+    }
+    
+    wire.end();
+    delay(100);
+  }
+  
+  Serial1.println("\n========================================\n");
+}
+
+void readMPURegister(TwoWire &wire, uint8_t address) {
+  Serial1.println("\n>>> MPU6500 detailne kontroll <<<");
+  Serial1.print("Aadress: 0x");
+  Serial1.println(address, HEX);
+  
+  // Loe WHO_AM_I register (0x75)
+  wire.beginTransmission(address);
+  wire.write(0x75);  // WHO_AM_I register
+  uint8_t error = wire.endTransmission(false);
+  
+  if (error == 0) {
+    wire.requestFrom(address, (uint8_t)1);
+    if (wire.available()) {
+      uint8_t whoami = wire.read();
+      Serial1.print("WHO_AM_I (0x75) = 0x");
+      Serial1.println(whoami, HEX);
+      
+      if (whoami == 0x70) {
+        Serial1.println("=> MPU6500 kinnitatud!");
+      } else if (whoami == 0x68) {
+        Serial1.println("=> MPU6050 kinnitatud!");
+      } else if (whoami == 0x71) {
+        Serial1.println("=> MPU9250 kinnitatud!");
+      } else if (whoami == 0x73) {
+        Serial1.println("=> MPU9255 kinnitatud!");
+      } else {
+        Serial1.println("=> Tundmatu IMU!");
+      }
+    }
+  } else {
+    Serial1.println("=> Lugemise viga!");
+  }
+}
+
+void detailedScan() {
+  Serial1.println("\n========================================");
+  Serial1.println("DETAILNE SKANEERIMINE");
+  Serial1.println("Kontrollime WHO_AM_I registreid");
+  Serial1.println("========================================\n");
+  
+  for (int i = 0; i < configCount; i++) {
+    I2CConfig config = i2cConfigs[i];
+    
+    Serial1.println("----------------------------------");
+    Serial1.println(config.name);
+    Serial1.println("----------------------------------");
+    
+    TwoWire wire;
+    wire.setSDA(config.sda);
+    wire.setSCL(config.scl);
+    wire.begin();
+    wire.setClock(100000);
+    
+    delay(50);
+    
+    // Kontrolli molemaid MPU aadresse
+    uint8_t addresses[] = {0x68, 0x69};
+    
+    for (int a = 0; a < 2; a++) {
+      wire.beginTransmission(addresses[a]);
+      uint8_t error = wire.endTransmission();
+      
+      if (error == 0) {
+        readMPURegister(wire, addresses[a]);
+      }
+    }
+    
+    wire.end();
+    Serial1.println();
+    delay(200);
+  }
+}
+
+void setup() {
+  Serial1.begin(115200);
+  delay(2000);
+  
+  Serial1.println("\n\n========================================");
+  Serial1.println("I2C SCANNER - STM32F103ZE");
+  Serial1.println("Matrix MOW800");
+  Serial1.println("========================================");
+  Serial1.println("EESMÄRK:");
+  Serial1.println("- Leida oiged I2C pinid (SDA, SCL)");
+  Serial1.println("- Skanneerida I2C seadmeid");
+  Serial1.println("- Tuvastada MPU6500 IMU'd");
+  Serial1.println("========================================\n");
+  delay(2000);
+  
+  Serial1.println("Voimalikud konfiguratsioonid:");
+  for (int i = 0; i < configCount; i++) {
+    Serial1.print("  ");
+    Serial1.print(i + 1);
+    Serial1.print(". ");
+    Serial1.println(i2cConfigs[i].name);
+  }
+  Serial1.println();
+  delay(2000);
+}
+
+void loop() {
+  Serial1.println("\n========================================");
+  Serial1.println("VALI TEGEVUS");
+  Serial1.println("========================================");
+  Serial1.println("1 - Kiire skaneerimine (koik konfid)");
+  Serial1.println("2 - Detailne skaneerimine (WHO_AM_I)");
+  Serial1.println("3 - Test konfiguratsioon #1");
+  Serial1.println("4 - Test konfiguratsioon #2");
+  Serial1.println("5 - Test konfiguratsioon #3");
+  Serial1.println("6 - Test konfiguratsioon #4");
+  Serial1.println("7 - Test konfiguratsioon #5");
+  Serial1.println("0 - Automaatne (koik testid)");
+  Serial1.println("========================================");
+  Serial1.println("Sisesta number voi oota 5 sek...\n");
+  
+  unsigned long startWait = millis();
+  char choice = '0';
+  
+  while (millis() - startWait < 5000) {
+    if (Serial1.available()) {
+      choice = Serial1.read();
+      break;
+    }
+    delay(100);
+  }
+  
+  Serial1.print("Valitud: ");
+  Serial1.println(choice);
+  Serial1.println();
+  
+  switch(choice) {
+    case '1':
+      quickScanAll();
+      break;
+    case '2':
+      detailedScan();
+      break;
+    case '3':
+      testI2CConfig(0);
+      break;
+    case '4':
+      testI2CConfig(1);
+      break;
+    case '5':
+      testI2CConfig(2);
+      break;
+    case '6':
+      testI2CConfig(3);
+      break;
+    case '7':
+      testI2CConfig(4);
+      break;
+    default:
+      Serial1.println("Kaivitan automaatse skaneerimise...\n");
+      quickScanAll();
+      delay(2000);
+      detailedScan();
+      break;
+  }
+  
+  Serial1.println("\n\nTestid loppenud. Restart 10 sek parast...\n");
+  delay(10000);
+}

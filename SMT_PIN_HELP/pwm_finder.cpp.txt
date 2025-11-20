@@ -1,0 +1,275 @@
+#include <Arduino.h>
+
+// ------------------------------------------------------
+// Serial console
+// ------------------------------------------------------
+HardwareSerial Console(USART1);
+
+// ------------------------------------------------------
+// Pin map
+// ------------------------------------------------------
+struct PinEntry { int pin; const char* name; };
+struct ExcludedPin { int pin; const char* reason; };
+
+const PinEntry pinMap[] = {
+  {PA0,"PA0"},{PA1,"PA1"},{PA2,"PA2"},{PA3,"PA3"},{PA4,"PA4"},{PA5,"PA5"},{PA6,"PA6"},{PA7,"PA7"},
+  {PA8,"PA8"},{PA9,"PA9"},{PA10,"PA10"},{PA11,"PA11"},{PA12,"PA12"},{PA13,"PA13"},{PA14,"PA14"},{PA15,"PA15"},
+  {PB0,"PB0"},{PB1,"PB1"},{PB2,"PB2"},{PB3,"PB3"},{PB4,"PB4"},{PB5,"PB5"},{PB6,"PB6"},{PB7,"PB7"},
+  {PB8,"PB8"},{PB9,"PB9"},{PB10,"PB10"},{PB11,"PB11"},{PB12,"PB12"},{PB13,"PB13"},{PB14,"PB14"},{PB15,"PB15"},
+  {PC0,"PC0"},{PC1,"PC1"},{PC2,"PC2"},{PC3,"PC3"},{PC4,"PC4"},{PC5,"PC5"},{PC6,"PC6"},{PC7,"PC7"},
+  {PC8,"PC8"},{PC9,"PC9"},{PC10,"PC10"},{PC11,"PC11"},{PC12,"PC12"},{PC13,"PC13"},{PC14,"PC14"},{PC15,"PC15"},
+  {PD0,"PD0"},{PD1,"PD1"},{PD2,"PD2"},{PD3,"PD3"},{PD4,"PD4"},{PD5,"PD5"},{PD6,"PD6"},{PD7,"PD7"},
+  {PD8,"PD8"},{PD9,"PD9"},{PD10,"PD10"},{PD11,"PD11"},{PD12,"PD12"},{PD13,"PD13"},{PD14,"PD14"},{PD15,"PD15"},
+  {PE0,"PE0"},{PE1,"PE1"},{PE2,"PE2"},{PE3,"PE3"},{PE4,"PE4"},{PE5,"PE5"},{PE6,"PE6"},{PE7,"PE7"},
+  {PE8,"PE8"},{PE9,"PE9"},{PE10,"PE10"},{PE11,"PE11"},{PE12,"PE12"},{PE13,"PE13"},{PE14,"PE14"},{PE15,"PE15"},
+  {PF0,"PF0"},{PF1,"PF1"},{PF2,"PF2"},{PF3,"PF3"},{PF4,"PF4"},{PF5,"PF5"},{PF6,"PF6"},{PF7,"PF7"},
+  {PF8,"PF8"},{PF9,"PF9"},{PF10,"PF10"},{PF11,"PF11"},{PF12,"PF12"},{PF13,"PF13"},{PF14,"PF14"},{PF15,"PF15"}
+};
+const int totalPinCount = sizeof(pinMap)/sizeof(pinMap[0]);
+
+// ------------------------------------------------------
+// Excluded pins + preconfigured enable pins
+// ------------------------------------------------------
+const ExcludedPin excludedPins[] = {
+  {PA9,  "Console TX"},
+  {PA10, "Console RX"},
+  {PB6,  "I2C1 SCL"},
+  {PB7,  "I2C1 SDA"},
+  {PB10, "I2C2 SCL"},
+  {PB11, "I2C2 SDA"},
+  {PD3,  "BUZZER/ALARM"},
+  {PC8,  "Main ENABLE"},
+  {PF2,  "Left ENABLE"},
+  {PA4,  "Left PWM (OP IN+)"},
+  {PF3,  "Left DIR"},
+  {PF8,  "Right ENABLE"},
+  {PF9,  "Right DIR"},
+  //{PA5,  "Right PWM (OP IN+)"},
+  {PF13,  "Mow ENABLE"},
+  {PF14,  "Mow DIR"}//,
+  //{PA,  "Mow PWM (OP IN+)"}
+};
+
+const int excludedCount = sizeof(excludedPins)/sizeof(excludedPins[0]);
+
+// ------------------------------------------------------
+// Initial enable states configured by user
+// ------------------------------------------------------
+struct InitialHighPin { int pin; const char* note; };
+struct InitialLowPin  { int pin; const char* note; };
+
+const InitialHighPin initialHighPins[] = {
+  {PC8, "Main ENABLE"},
+  //{PF2, "Left ENABLE"},
+  //{PF8, "Right ENABLE"}//,
+  {PF13,  "Mow ENABLE"}
+};
+const int initialHighCount = sizeof(initialHighPins)/sizeof(initialHighPins[0]);
+
+const InitialLowPin initialLowPins[] = { };
+const int initialLowCount = 0;
+
+// ------------------------------------------------------
+// Found PWM pins
+// ------------------------------------------------------
+struct FoundPin { String name; };
+FoundPin foundPins[32];
+int foundCount = 0;
+
+// ------------------------------------------------------
+String getPinName(int p) {
+  for(int i=0;i<totalPinCount;i++)
+    if(pinMap[i].pin == p) return pinMap[i].name;
+  return "?";
+}
+
+int getPinByName(String s) {
+  s.trim();
+  s.toUpperCase();
+  for(int i=0;i<totalPinCount;i++)
+    if(s == pinMap[i].name) return pinMap[i].pin;
+  return -1;
+}
+
+bool isExcluded(int pin) {
+  for(int i=0;i<excludedCount;i++)
+    if(excludedPins[i].pin == pin) return true;
+  return false;
+}
+
+// ------------------------------------------------------
+// PWM test values
+// ------------------------------------------------------
+int pwmValues[] = {50, 100, 150};
+
+// ------------------------------------------------------
+void testPWMPin(int pin)
+{
+  Console.println();
+  Console.print("Testin PINI kui PWM: ");
+  Console.println(getPinName(pin));
+
+  pinMode(pin, OUTPUT);
+
+  for(int i=0;i<2;i++)
+  {
+    int val = pwmValues[i];
+    Console.print("PWM = ");
+    Console.print(val);
+    Console.println(" / 255");
+
+    analogWrite(pin, val);
+    delay(3000);
+
+    Console.println("  -> KAS MOOTORI KIIRUS MUUTUS?");
+    delay(1000);
+  }
+
+  analogWrite(pin, 0);
+  Console.println(">> Test l6ppes!");
+}
+
+// ------------------------------------------------------
+void printFound()
+{
+  Console.println("\nLEITUD PWM PINID:");
+  for(int i=0;i<foundCount;i++){
+    Console.print("  ");
+    Console.println(foundPins[i].name);
+  }
+  Console.println();
+}
+
+// ------------------------------------------------------
+int scanIndex = 0;
+bool stopFlag = false;
+enum ScanState { SCAN, PAUSED, STOPPED };
+ScanState state = SCAN;
+
+// ------------------------------------------------------
+void scanNext()
+{
+  if(scanIndex >= totalPinCount){
+    Console.println("\n>>> Kõik pinid läbi\n");
+    state = STOPPED;
+    return;
+  }
+
+  int pin = pinMap[scanIndex].pin;
+
+  if(isExcluded(pin)){
+    Console.print("Vahele: ");
+    Console.print(getPinName(pin));
+    Console.print(" — ");
+    for(int i=0;i<excludedCount;i++)
+      if(excludedPins[i].pin == pin) Console.println(excludedPins[i].reason);
+    scanIndex++;
+    return;
+  }
+
+  Console.println("\n=====================================");
+  Console.print("Testin: "); Console.println(getPinName(pin));
+  Console.println("=====================================");
+
+  testPWMPin(pin);
+
+  Console.println("STOP = S, NEXT = N, PAUSE = P, RESTART = R");
+  scanIndex++;
+}
+
+// ------------------------------------------------------
+void setup()
+{
+  Console.begin(115200);
+  delay(2000);
+
+  Console.println("\n=====================================");
+  Console.println("        MC33035 PWM PIN FINDER       ");
+  Console.println("=====================================");
+  Console.println("PWM test määrab, millise pinni kaudu\n"
+                   "kiirus reaalselt muutub.\n");
+  Console.println("-------------------------------------");
+  Console.println("Eelseadistatud enable-pinid:");
+  for(int i=0;i<initialHighCount;i++){
+    pinMode(initialHighPins[i].pin, OUTPUT);
+    digitalWrite(initialHighPins[i].pin, HIGH);
+    Console.print("  HIGH: ");
+    Console.println(getPinName(initialHighPins[i].pin));
+  }
+  for(int i=0;i<initialLowCount;i++){
+    pinMode(initialLowPins[i].pin, OUTPUT);
+    digitalWrite(initialLowPins[i].pin, LOW);
+    Console.print("  LOW: ");
+    Console.println(getPinName(initialLowPins[i].pin));
+  }
+
+  Console.println("-------------------------------------");
+  Console.println("Välistatud pinid:");
+  for(int i=0;i<excludedCount;i++){
+    Console.print("  ");
+    Console.print(getPinName(excludedPins[i].pin));
+    Console.print(" : ");
+    Console.println(excludedPins[i].reason);
+  }
+  Console.println("-------------------------------------\n");
+
+  state = SCAN;
+}
+
+// ------------------------------------------------------
+void processCommand(char c)
+{
+  switch(c){
+    case 's': case 'S':
+      Console.println("\n>>> STOP — PWM pin kinnitatud!");
+      if(scanIndex > 0){
+        foundPins[foundCount++].name = getPinName(pinMap[scanIndex-1].pin);
+      }
+      printFound();
+      state = STOPPED;
+      break;
+
+    case 'n': case 'N':
+      Console.println(">>> NEXT");
+      state = SCAN;
+      break;
+
+    case 'p': case 'P':
+      Console.println(">>> PAUSE");
+      state = PAUSED;
+      break;
+
+    case 'r': case 'R':
+      Console.println(">>> RESTART");
+      scanIndex = 0;
+      stopFlag = false;
+      state = SCAN;
+      break;
+
+    case 'e': case 'E':
+      printFound();
+      break;
+
+    default:
+      Console.println("Käsud: S=STOP, N=NEXT, P=PAUSE, R=RESTART, E=LOETELU");
+  }
+}
+
+// ------------------------------------------------------
+void loop()
+{
+  if(Console.available()){
+    char c = Console.read();
+    processCommand(c);
+  }
+
+  if(state == SCAN){
+    scanNext();
+  }
+  else if(state == PAUSED){
+    delay(100);
+  }
+  else if(state == STOPPED){
+    delay(300);
+  }
+}

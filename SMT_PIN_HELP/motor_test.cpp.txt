@@ -1,0 +1,462 @@
+/*
+ *  MOTOR TEST - MC33035
+ * 
+ * - PC8: Global ENABLE (HIGH=All on pin7 and pin23 )
+ * - PF2: Enable (MC33035 Pin 23 Low)
+ * - PF3:  Direction (MC33035 Pin 3)
+ * - PA4:  PWM Speed (MC33035 Pin 11 - Error Amp IN+)
+ * 
+ */
+
+#include <Arduino.h>
+
+HardwareSerial Serial1(PA10, PA9);
+
+//  MOTOR pinid
+const int GLOBAL_ENABLE = PC8;      // HIGH=mootorid ON
+const int LEFT_ENABLE = PF2;        // Pin 23 (Enable)
+const int LEFT_DIRECTION = PF3;     // Pin 3 (Fwd/Rev)
+const int LEFT_PWM = PA4;           // Pin 11 (Speed - Error Amp IN+)
+
+// Muud
+const int BUZZER_PIN = PD3;         // Alarm
+
+void setup() {
+  Serial1.begin(115200);
+  delay(2000);
+  
+  // Seadista pinid
+  pinMode(GLOBAL_ENABLE, OUTPUT);
+  digitalWrite(GLOBAL_ENABLE, LOW);  // Alguses OFF
+  
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);     // Buzzer OFF
+  
+  pinMode(LEFT_ENABLE, OUTPUT);
+  pinMode(LEFT_DIRECTION, OUTPUT);
+  pinMode(LEFT_PWM, OUTPUT);
+  
+  // Algseisund
+  digitalWrite(LEFT_ENABLE, LOW);
+  digitalWrite(LEFT_DIRECTION, LOW);
+  analogWrite(LEFT_PWM, 0);
+  
+  Serial1.println("\n\n========================================");
+  Serial1.println("LEFT MOTOR TEST");
+  Serial1.println("========================================");
+  Serial1.println("PINID:");
+  Serial1.println("  PC8 -> Global ENABLE (HIGH=mootorid ON!)");
+  Serial1.println("  PF2 -> LEFT Enable (Pin 7)");
+  Serial1.println("  PF3 -> LEFT Direction (Pin 3)");
+  Serial1.println("  PA4 -> LEFT PWM Speed (Pin 11)");
+  Serial1.println("========================================");
+  Serial1.println("VAATA/KUULA/TUNNE:");
+  Serial1.println("  - Kas mootor liigub?");
+  Serial1.println("  - Kas mootor heliseb/vibratsiooni?");
+  Serial1.println("  - Kas on takistust kasitsi liigutamisel?");
+  Serial1.println("========================================\n");
+  delay(3000);
+}
+
+void stopMotor() {
+  digitalWrite(LEFT_ENABLE, LOW);
+  analogWrite(LEFT_PWM, 0);
+  digitalWrite(LEFT_DIRECTION, LOW);
+}
+
+void test1_BasicEnable() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 1: BASIC ENABLE");
+  Serial1.println("========================================");
+  Serial1.println("PC8=HIGH (mootorid ON), PF2=HIGH (LEFT enable)\n");
+  
+  digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
+  digitalWrite(LEFT_DIRECTION, LOW);
+  analogWrite(LEFT_PWM, 0);
+  digitalWrite(LEFT_ENABLE, HIGH);    // LEFT Enable ON
+  
+  Serial1.println(">> PC8=HIGH, PF2=HIGH (5 sek)");
+  Serial1.println(">> Kas midagi toimub?");
+  Serial1.println(">> (mootor voib olla vaikne kui PWM=0)\n");
+  delay(2000);
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("Test 1 loppenud.\n");
+  delay(2000);
+}
+
+void test2_EnableWithPWM() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 2: ENABLE + PWM");
+  Serial1.println("========================================");
+  Serial1.println("PC8=HIGH, PF2=HIGH, PF3=LOW, PA4=PWM\n");
+  
+  digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
+  digitalWrite(LEFT_ENABLE, HIGH);
+  digitalWrite(LEFT_DIRECTION, LOW);
+  
+  int pwmValues[] = {50, 100, 150, 200, 255};
+  
+  for (int i = 0; i < 5; i++) {
+    Serial1.print("PWM (PA4) = ");
+    Serial1.print(pwmValues[i]);
+    Serial1.println(" / 255");
+    
+    analogWrite(LEFT_PWM, pwmValues[i]);
+    delay(3000);
+    
+    Serial1.println("  -> KAS LIIGUB/HELISEB?");
+    delay(1000);
+  }
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("\nTest 2 loppenud.\n");
+  delay(2000);
+}
+
+void test3_DirectionChange() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 3: SUUNA MUUTMINE");
+  Serial1.println("========================================");
+  Serial1.println("PC8=HIGH, PF2=HIGH, PA4=50, PF3=LOW/HIGH\n");
+  
+  digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
+  digitalWrite(LEFT_ENABLE, HIGH);
+  analogWrite(LEFT_PWM, 50);
+  
+  Serial1.println("FORWARD (PF3=LOW):");
+  digitalWrite(LEFT_DIRECTION, LOW);
+  delay(4000);
+  
+  Serial1.println("\nSTOP:");
+  analogWrite(LEFT_PWM, 0);
+  delay(1000);
+  
+  Serial1.println("\nREVERSE (PF3=HIGH):");
+  digitalWrite(LEFT_DIRECTION, HIGH);
+  analogWrite(LEFT_PWM, 50);
+  delay(4000);
+  
+  Serial1.println("\nSTOP:");
+  stopMotor();
+  delay(1000);
+  
+  Serial1.println("\nFORWARD uuesti:");
+  digitalWrite(LEFT_DIRECTION, LOW);
+  digitalWrite(LEFT_ENABLE, HIGH);
+  analogWrite(LEFT_PWM, 50);
+  delay(4000);
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("\nTest 3 loppenud.\n");
+  delay(2000);
+}
+
+void test4_BrakeEffect() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 4: PC8 ON/OFF EFEKT");
+  Serial1.println("========================================");
+  Serial1.println("Vaatame kuidas PC8 LOW/HIGH mojutab\n");
+  
+  digitalWrite(LEFT_ENABLE, HIGH);
+  digitalWrite(LEFT_DIRECTION, LOW);
+  analogWrite(LEFT_PWM, 50);
+  
+  Serial1.println("1. PC8=HIGH (mootorid ON), PWM=50:");
+  digitalWrite(GLOBAL_ENABLE, HIGH);
+  delay(3000);
+  
+  Serial1.println("\n2. PC8=LOW (mootorid OFF) - peaks peatuma:");
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  delay(3000);
+  
+  Serial1.println("\n3. PC8=HIGH (mootorid ON) - peaks jatkama:");
+  digitalWrite(GLOBAL_ENABLE, HIGH);
+  delay(3000);
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("\nTest 4 loppenud.\n");
+  delay(2000);
+}
+
+void test5_OnOffCycles() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 5: ON/OFF TSYKLID");
+  Serial1.println("========================================");
+  Serial1.println("10x kiire ON/OFF tsykkel\n");
+  
+  digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
+  digitalWrite(LEFT_DIRECTION, LOW);
+  
+  for (int i = 0; i < 10; i++) {
+    Serial1.print("Tsykkel #");
+    Serial1.print(i + 1);
+    Serial1.println(" / 10");
+    
+    // ON
+    digitalWrite(LEFT_ENABLE, HIGH);
+    analogWrite(LEFT_PWM, 50);
+    delay(1000);
+    
+    // OFF
+    digitalWrite(LEFT_ENABLE, LOW);
+    analogWrite(LEFT_PWM, 0);
+    delay(500);
+  }
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("\nTest 5 loppenud.\n");
+  delay(2000);
+}
+
+void test6_SlowRamp() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 6: AEGLANE RAMP");
+  Serial1.println("========================================");
+  Serial1.println("PWM 0 -> 255 -> 0 (aeglane)\n");
+  
+  digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
+  digitalWrite(LEFT_ENABLE, HIGH);
+  digitalWrite(LEFT_DIRECTION, LOW);
+  
+  Serial1.println("Ramp UP (0->255):");
+  for (int pwm = 0; pwm <= 255; pwm += 5) {
+    analogWrite(LEFT_PWM, pwm);
+    if (pwm % 50 == 0) {
+      Serial1.print("  PWM = ");
+      Serial1.println(pwm);
+    }
+    delay(100);
+  }
+  
+  delay(2000);
+  
+  Serial1.println("\nRamp DOWN (255->0):");
+  for (int pwm = 255; pwm >= 0; pwm -= 5) {
+    analogWrite(LEFT_PWM, pwm);
+    if (pwm % 50 == 0) {
+      Serial1.print("  PWM = ");
+      Serial1.println(pwm);
+    }
+    delay(100);
+  }
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("\nTest 6 loppenud.\n");
+  delay(2000);
+}
+
+void test7_AllStates() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 7: KOIK OLEKUD");
+  Serial1.println("========================================");
+  Serial1.println("Proovime koiki PC8/PF2/PF3 kombinatsioone\n");
+  
+  analogWrite(LEFT_PWM, 50);
+  
+  // PC8, PF2, PF3
+  bool states[][3] = {
+    {LOW, LOW, LOW},    // Global OFF, Enable OFF, Dir FWD
+    {HIGH, LOW, LOW},   // Global ON, Enable OFF, Dir FWD
+    {HIGH, HIGH, LOW},  // Global ON, Enable ON, Dir FWD
+    {HIGH, HIGH, HIGH}, // Global ON, Enable ON, Dir REV
+    {LOW, HIGH, LOW},   // Global OFF, Enable ON, Dir FWD
+  };
+  
+  for (int i = 0; i < 5; i++) {
+    Serial1.print("Olek #");
+    Serial1.print(i + 1);
+    Serial1.print(": PC8=");
+    Serial1.print(states[i][0] ? "HIGH" : "LOW");
+    Serial1.print(", PF2=");
+    Serial1.print(states[i][1] ? "HIGH" : "LOW");
+    Serial1.print(", PF3=");
+    Serial1.println(states[i][2] ? "HIGH" : "LOW");
+    
+    digitalWrite(GLOBAL_ENABLE, states[i][0]);
+    digitalWrite(LEFT_ENABLE, states[i][1]);
+    digitalWrite(LEFT_DIRECTION, states[i][2]);
+    
+    delay(3000);
+    Serial1.println();
+  }
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("Test 7 loppenud.\n");
+  delay(2000);
+}
+
+void test8_ManualControl() {
+  Serial1.println("\n========================================");
+  Serial1.println("TEST 8: MANUAALNE KONTROLL");
+  Serial1.println("========================================");
+  Serial1.println("Kasud:");
+  Serial1.println("  w = Forward PWM++");
+  Serial1.println("  s = Forward PWM--");
+  Serial1.println("  a = Reverse PWM++");
+  Serial1.println("  d = Reverse PWM--");
+  Serial1.println("  e = Enable ON/OFF");
+  Serial1.println("  b = Global (PC8) ON/OFF");
+  Serial1.println("  x = STOP");
+  Serial1.println("  q = Quit");
+  Serial1.println("========================================\n");
+  
+  int pwm = 100;
+  bool enabled = false;
+  bool globalOn = false;
+  bool forward = true;
+  
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  digitalWrite(LEFT_ENABLE, LOW);
+  analogWrite(LEFT_PWM, 0);
+  digitalWrite(LEFT_DIRECTION, LOW);
+  
+  Serial1.println(">> Ready! Sisesta kasu...\n");
+  
+  while (true) {
+    if (Serial1.available()) {
+      char cmd = Serial1.read();
+      
+      if (cmd == 'q' || cmd == 'Q') {
+        Serial1.println("\n>> Valjun...\n");
+        break;
+      }
+      else if (cmd == 'w' || cmd == 'W') {
+        forward = true;
+        pwm = min(255, pwm + 20);
+        digitalWrite(LEFT_DIRECTION, LOW);
+        if (enabled && globalOn) analogWrite(LEFT_PWM, pwm);
+        Serial1.print("Forward PWM=");
+        Serial1.println(pwm);
+      }
+      else if (cmd == 's' || cmd == 'S') {
+        pwm = max(0, pwm - 20);
+        if (enabled && globalOn) analogWrite(LEFT_PWM, pwm);
+        Serial1.print("PWM=");
+        Serial1.println(pwm);
+      }
+      else if (cmd == 'a' || cmd == 'A') {
+        forward = false;
+        pwm = min(255, pwm + 20);
+        digitalWrite(LEFT_DIRECTION, HIGH);
+        if (enabled && globalOn) analogWrite(LEFT_PWM, pwm);
+        Serial1.print("Reverse PWM=");
+        Serial1.println(pwm);
+      }
+      else if (cmd == 'd' || cmd == 'D') {
+        pwm = max(0, pwm - 20);
+        if (enabled && globalOn) analogWrite(LEFT_PWM, pwm);
+        Serial1.print("PWM=");
+        Serial1.println(pwm);
+      }
+      else if (cmd == 'e' || cmd == 'E') {
+        enabled = !enabled;
+        digitalWrite(LEFT_ENABLE, enabled ? HIGH : LOW);
+        if (!enabled) {
+          analogWrite(LEFT_PWM, 0);
+          pwm = 0;
+        }
+        Serial1.print("Enable=");
+        Serial1.println(enabled ? "ON" : "OFF");
+      }
+      else if (cmd == 'b' || cmd == 'B') {
+        globalOn = !globalOn;
+        digitalWrite(GLOBAL_ENABLE, globalOn ? HIGH : LOW);
+        Serial1.print("Global=");
+        Serial1.println(globalOn ? "ON" : "OFF");
+      }
+      else if (cmd == 'x' || cmd == 'X') {
+        stopMotor();
+        digitalWrite(GLOBAL_ENABLE, LOW);
+        pwm = 0;
+        enabled = false;
+        globalOn = false;
+        Serial1.println("FULL STOP");
+      }
+    }
+    delay(10);
+  }
+  
+  stopMotor();
+  digitalWrite(GLOBAL_ENABLE, LOW);
+  Serial1.println("Test 8 loppenud.\n");
+  delay(2000);
+}
+
+void loop() {
+  Serial1.println("\n========================================");
+  Serial1.println("VALI TEST");
+  Serial1.println("========================================");
+  Serial1.println("1 - Basic Enable");
+  Serial1.println("2 - Enable + PWM");
+  Serial1.println("3 - Suuna muutmine");
+  Serial1.println("4 - Brake efekt");
+  Serial1.println("5 - ON/OFF tsyklid");
+  Serial1.println("6 - Aeglane ramp");
+  Serial1.println("7 - Koik olekud");
+  Serial1.println("8 - Manuaalne kontroll (interaktiivne)");
+  Serial1.println("0 - Automaatne (koik jarjest)");
+  Serial1.println("========================================");
+  Serial1.println("Sisesta number voi oota 5 sek...\n");
+  
+  unsigned long startWait = millis();
+  char choice = '0';
+  
+  while (millis() - startWait < 5000) {
+    if (Serial1.available()) {
+      choice = Serial1.read();
+      break;
+    }
+    delay(100);
+  }
+  
+  Serial1.print("Valitud: ");
+  Serial1.println(choice);
+  Serial1.println();
+  
+  switch(choice) {
+    case '1':
+      test1_BasicEnable();
+      break;
+    case '2':
+      test2_EnableWithPWM();
+      break;
+    case '3':
+      test3_DirectionChange();
+      break;
+    case '4':
+      test4_BrakeEffect();
+      break;
+    case '5':
+      test5_OnOffCycles();
+      break;
+    case '6':
+      test6_SlowRamp();
+      break;
+    case '7':
+      test7_AllStates();
+      break;
+    case '8':
+      test8_ManualControl();
+      break;
+    default:
+      Serial1.println("Kaivitan koik testid...\n");
+      test1_BasicEnable();
+      test2_EnableWithPWM();
+      test3_DirectionChange();
+      test4_BrakeEffect();
+      test5_OnOffCycles();
+      test6_SlowRamp();
+      break;
+  }
+  
+  Serial1.println("\n\nKoik testid loppenud. Restart 10 sek...\n");
+  delay(10000);
+}
