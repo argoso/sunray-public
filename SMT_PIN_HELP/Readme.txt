@@ -1,5 +1,5 @@
 Helper programs to find Einhell lawn mower GC-RM 500 pins
-and my other lawn mower with STM32F103ZED6 (GD32F303ZET6 analog) CPU's
+and may other lawn mower with STM32F103ZED6 (GD32F303ZET6 analog) CPU's
 
 in PCB we found
 3x MC33035DW 	Brushless DC Motor Controller  
@@ -20,6 +20,7 @@ IMU #2 PB11 (SDA), PB10 (SCL)  confirmed (I2C2)
 
 Buzer Alarm: ENABLE: PD3 (HIGH)
 pin PC8 = All MC33035's pin 7 and pin 23 HIGH (active/electrical break)
+
 
 Left MC33035 pin 3 PF3 = Dir (HIGH=Reverse, LOW=Forward)
 Left MC33035 pin 23 PF2 = Enable HIGH (pin 23 = LOW)
