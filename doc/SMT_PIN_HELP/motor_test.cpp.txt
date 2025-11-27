@@ -1,9 +1,9 @@
 /*
- *  MOTOR TEST - MC33035
+ *  MOTOR TEST - MC33035 (INVERTED LOGIC!)
  * 
- * - PC8: Global ENABLE (HIGH=All on pin7 and pin23 )
- * - PF2: Enable (MC33035 Pin 23 Low)
- * - PF3:  Direction (MC33035 Pin 3)
+ * - PC8: Global ENABLE (HIGH=All on pin7 )
+ * - PF13: Enable (MC33035 Pin 23 Low)
+ * - PF14:  Direction (MC33035 Pin 3)
  * - PA4:  PWM Speed (MC33035 Pin 11 - Error Amp IN+)
  * 
  */
@@ -14,8 +14,8 @@ HardwareSerial Serial1(PA10, PA9);
 
 //  MOTOR pinid
 const int GLOBAL_ENABLE = PC8;      // HIGH=mootorid ON
-const int LEFT_ENABLE = PF2;        // Pin 23 (Enable)
-const int LEFT_DIRECTION = PF3;     // Pin 3 (Fwd/Rev)
+const int LEFT_ENABLE = PF13;        // Pin 23 (Enable)
+const int LEFT_DIRECTION = PF14;     // Pin 3 (Fwd/Rev)
 const int LEFT_PWM = PA4;           // Pin 11 (Speed - Error Amp IN+)
 
 // Muud
@@ -46,8 +46,8 @@ void setup() {
   Serial1.println("========================================");
   Serial1.println("PINID:");
   Serial1.println("  PC8 -> Global ENABLE (HIGH=mootorid ON!)");
-  Serial1.println("  PF2 -> LEFT Enable (Pin 7)");
-  Serial1.println("  PF3 -> LEFT Direction (Pin 3)");
+  Serial1.println("  PF13 -> LEFT Enable (Pin 7)");
+  Serial1.println("  PF14 -> LEFT Direction (Pin 3)");
   Serial1.println("  PA4 -> LEFT PWM Speed (Pin 11)");
   Serial1.println("========================================");
   Serial1.println("VAATA/KUULA/TUNNE:");
@@ -68,14 +68,14 @@ void test1_BasicEnable() {
   Serial1.println("\n========================================");
   Serial1.println("TEST 1: BASIC ENABLE");
   Serial1.println("========================================");
-  Serial1.println("PC8=HIGH (mootorid ON), PF2=HIGH (LEFT enable)\n");
+  Serial1.println("PC8=HIGH (mootorid ON), PF13=HIGH (LEFT enable)\n");
   
   digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
   digitalWrite(LEFT_DIRECTION, LOW);
   analogWrite(LEFT_PWM, 0);
   digitalWrite(LEFT_ENABLE, HIGH);    // LEFT Enable ON
   
-  Serial1.println(">> PC8=HIGH, PF2=HIGH (5 sek)");
+  Serial1.println(">> PC8=HIGH, PF13=HIGH (5 sek)");
   Serial1.println(">> Kas midagi toimub?");
   Serial1.println(">> (mootor voib olla vaikne kui PWM=0)\n");
   delay(2000);
@@ -90,7 +90,7 @@ void test2_EnableWithPWM() {
   Serial1.println("\n========================================");
   Serial1.println("TEST 2: ENABLE + PWM");
   Serial1.println("========================================");
-  Serial1.println("PC8=HIGH, PF2=HIGH, PF3=LOW, PA4=PWM\n");
+  Serial1.println("PC8=HIGH, PF13=HIGH, PF14=LOW, PA4=PWM\n");
   
   digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
   digitalWrite(LEFT_ENABLE, HIGH);
@@ -120,13 +120,13 @@ void test3_DirectionChange() {
   Serial1.println("\n========================================");
   Serial1.println("TEST 3: SUUNA MUUTMINE");
   Serial1.println("========================================");
-  Serial1.println("PC8=HIGH, PF2=HIGH, PA4=50, PF3=LOW/HIGH\n");
+  Serial1.println("PC8=HIGH, PF13=HIGH, PA4=50, PF14=LOW/HIGH\n");
   
   digitalWrite(GLOBAL_ENABLE, HIGH);  // Mootorid ON!
   digitalWrite(LEFT_ENABLE, HIGH);
   analogWrite(LEFT_PWM, 50);
   
-  Serial1.println("FORWARD (PF3=LOW):");
+  Serial1.println("FORWARD (PF14=LOW):");
   digitalWrite(LEFT_DIRECTION, LOW);
   delay(4000);
   
@@ -134,7 +134,7 @@ void test3_DirectionChange() {
   analogWrite(LEFT_PWM, 0);
   delay(1000);
   
-  Serial1.println("\nREVERSE (PF3=HIGH):");
+  Serial1.println("\nREVERSE (PF14=HIGH):");
   digitalWrite(LEFT_DIRECTION, HIGH);
   analogWrite(LEFT_PWM, 50);
   delay(4000);
@@ -256,11 +256,11 @@ void test7_AllStates() {
   Serial1.println("\n========================================");
   Serial1.println("TEST 7: KOIK OLEKUD");
   Serial1.println("========================================");
-  Serial1.println("Proovime koiki PC8/PF2/PF3 kombinatsioone\n");
+  Serial1.println("Proovime koiki PC8/PF13/PF14 kombinatsioone\n");
   
   analogWrite(LEFT_PWM, 50);
   
-  // PC8, PF2, PF3
+  // PC8, PF13, PF14
   bool states[][3] = {
     {LOW, LOW, LOW},    // Global OFF, Enable OFF, Dir FWD
     {HIGH, LOW, LOW},   // Global ON, Enable OFF, Dir FWD
@@ -274,9 +274,9 @@ void test7_AllStates() {
     Serial1.print(i + 1);
     Serial1.print(": PC8=");
     Serial1.print(states[i][0] ? "HIGH" : "LOW");
-    Serial1.print(", PF2=");
+    Serial1.print(", PF13=");
     Serial1.print(states[i][1] ? "HIGH" : "LOW");
-    Serial1.print(", PF3=");
+    Serial1.print(", PF14=");
     Serial1.println(states[i][2] ? "HIGH" : "LOW");
     
     digitalWrite(GLOBAL_ENABLE, states[i][0]);

@@ -33,6 +33,8 @@ const ExcludedPin excludedPins[] = {
   {PB7,  "I2C1 SDA"},
   {PB10, "I2C2 SCL"},
   {PB11, "I2C2 SDA"},
+  {PA13, "SWDIO"},
+  {PA14, "SWDCLK"},
   {PD3,  "BUZZER/ALARM"},
   {PC8,  "Main ENABLE"},
   {PF2,  "Left ENABLE"},

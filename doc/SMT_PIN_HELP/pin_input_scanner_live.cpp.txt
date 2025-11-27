@@ -1,0 +1,284 @@
+#include <Arduino.h>
+
+HardwareSerial Console(USART1);
+
+// ----- PIN STRUCTS -----------------------------------------------------
+struct PinEntry { int pin; const char* name; };
+struct ExcludedPin { int pin; const char* reason; };
+
+// ----- PIN MAP ----------------------------------------
+const PinEntry pinMap[] = {
+  {PA0,"PA0"},{PA1,"PA1"},{PA2,"PA2"},{PA3,"PA3"},{PA4,"PA4"},{PA5,"PA5"},{PA6,"PA6"},{PA7,"PA7"},
+  {PA8,"PA8"},{PA9,"PA9"},{PA10,"PA10"},{PA11,"PA11"},{PA12,"PA12"},{PA13,"PA13"},{PA14,"PA14"},{PA15,"PA15"},
+  {PB0,"PB0"},{PB1,"PB1"},{PB2,"PB2"},{PB3,"PB3"},{PB4,"PB4"},{PB5,"PB5"},{PB6,"PB6"},{PB7,"PB7"},
+  {PB8,"PB8"},{PB9,"PB9"},{PB10,"PB10"},{PB11,"PB11"},{PB12,"PB12"},{PB13,"PB13"},{PB14,"PB14"},{PB15,"PB15"},
+  {PC0,"PC0"},{PC1,"PC1"},{PC2,"PC2"},{PC3,"PC3"},{PC4,"PC4"},{PC5,"PC5"},{PC6,"PC6"},{PC7,"PC7"},
+  {PC8,"PC8"},{PC9,"PC9"},{PC10,"PC10"},{PC11,"PC11"},{PC12,"PC12"},{PC13,"PC13"},{PC14,"PC14"},{PC15,"PC15"},
+  {PD0,"PD0"},{PD1,"PD1"},{PD2,"PD2"},{PD3,"PD3"},{PD4,"PD4"},{PD5,"PD5"},{PD6,"PD6"},{PD7,"PD7"},
+  {PD8,"PD8"},{PD9,"PD9"},{PD10,"PD10"},{PD11,"PD11"},{PD12,"PD12"},{PD13,"PD13"},{PD14,"PD14"},{PD15,"PD15"},
+  {PE0,"PE0"},{PE1,"PE1"},{PE2,"PE2"},{PE3,"PE3"},{PE4,"PE4"},{PE5,"PE5"},{PE6,"PE6"},{PE7,"PE7"},
+  {PE8,"PE8"},{PE9,"PE9"},{PE10,"PE10"},{PE11,"PE11"},{PE12,"PE12"},{PE13,"PE13"},{PE14,"PE14"},{PE15,"PE15"},
+  {PF0,"PF0"},{PF1,"PF1"},{PF2,"PF2"},{PF3,"PF3"},{PF4,"PF4"},{PF5,"PF5"},{PF6,"PF6"},{PF7,"PF7"},
+  {PF8,"PF8"},{PF9,"PF9"},{PF10,"PF10"},{PF11,"PF11"},{PF12,"PF12"},{PF13,"PF13"},{PF14,"PF14"},{PF15,"PF15"}
+};
+const int totalPinCount = sizeof(pinMap)/sizeof(pinMap[0]);
+
+// ----- EXCLUDED PINS ------------------------
+const ExcludedPin excludedPins[] = {
+  {PA9,  "Console TX"},
+  {PA10, "Console RX"},
+  {PC10, "Serial4 TX"},
+  {PA11, "Serial4 RX"},
+  {PD5,  "Serial6 TX"},
+  {PD6,  "Serial6 RX"},
+  {PA13, "SWDIO"},
+  {PA14, "SWDCLK"},
+  {PB6,  "I2C1 SCL"},
+  {PB7,  "I2C1 SDA"},
+  {PB10, "I2C2 SCL"},
+  {PB11, "I2C2 SDA"},
+  {PD3,  "BUZZER/ALARM"},
+  {PD1,  "Power ON/OFF"},
+  {PC3,  "Battery Voltage"},
+  {PC8,  "Main ENABLE"},
+  {PF2,  "Left ENABLE"},
+  {PA4,  "Left PWM (OP IN+)"},
+  {PA2,  "Left sense/current"},
+  {PF3,  "Left DIR"},
+  {PF8,  "Right ENABLE"},
+  {PF9,  "Right DIR"},
+  {PA5,  "Right PWM (OP IN+)"},
+  {PA3,  "Right sense/current"},
+  {PF13,  "Mow ENABLE"},
+  {PF14, "Mow DIR"},
+//  {PA?,  "Mow PWM"},
+  {PF10, "Blue Led on PCB"},
+  {PC4,  "(Battery sense/current?)"}
+};
+const int excludedCount = sizeof(excludedPins)/sizeof(excludedPins[0]);
+
+bool isExcluded(int pin) {
+  for (int i=0;i<excludedCount;i++)
+    if (excludedPins[i].pin == pin) return true;
+  return false;
+}
+
+// Pinid, mille algolek seatakse HIGH
+struct InitialHighPin {
+  int pin;
+  const char* note;
+};
+
+const InitialHighPin initialHighPins[] = {
+  //{PD1, "Startup HIGH"}
+  //{PF2, "Startup HIGH"}
+};
+
+const int initialHighCount = sizeof(initialHighPins) / sizeof(initialHighPins[0]);
+
+// ----- SCAN SETTINGS ---------------------------------------------------
+const int SCAN_COUNT = 20;
+int stateInitial[200];
+
+// -----------------------------------------------------------------------
+// STABIILSUSE SKANEERING
+// -----------------------------------------------------------------------
+void scanPins(int* value, bool* stable, bool* floating) {
+  for (int i=0; i<totalPinCount; i++) {
+    int pin = pinMap[i].pin;
+
+    if (isExcluded(pin)) {
+      value[i] = -1;
+      stable[i] = true;
+      floating[i] = false;
+      continue;
+    }
+
+    pinMode(pin, INPUT_PULLUP);
+
+    int first = digitalRead(pin);
+    bool same = true;
+
+    for (int j=0; j<SCAN_COUNT; j++) {
+      int v = digitalRead(pin);
+      if (v != first) same = false;
+      delay(2);
+    }
+
+    value[i] = first;
+    stable[i] = same;
+    floating[i] = !same;
+  }
+}
+
+// -----------------------------------------------------------------------
+// REALAJA monitor (Live View)
+// -----------------------------------------------------------------------
+void liveView() {
+  Console.println("\n--- LIVE VIEW ---");
+  Console.println("Vajuta ENTER et valjuda.\n");
+
+  int last[200];
+  bool st[200];
+  bool fl[200];
+
+  scanPins(last, st, fl);
+
+  while (true) {
+    if (Console.available()) {
+      Console.read();
+      Console.println("\n(Live view lõpetatud)\n");
+      return;
+    }
+
+    int now[200];
+    bool st2[200], fl2[200];
+    scanPins(now, st2, fl2);
+
+    for (int i=0;i<totalPinCount;i++) {
+      if (now[i] < 0) continue;
+
+      bool changed = (now[i] != last[i]);
+
+      if (changed || fl2[i]) {
+        Console.print(pinMap[i].name);
+        Console.print(" : ");
+        Console.print(last[i]);
+        Console.print(" -> ");
+        Console.print(now[i]);
+
+        if (changed) Console.print("  [CHG]");
+        if (fl2[i]) Console.print("  [FLOAT]");
+
+        Console.println();
+      }
+    }
+
+    memcpy(last, now, sizeof(last));
+
+    delay(100);
+  }
+}
+
+// -----------------------------------------------------------------------
+// ASCII WAVEFORM
+// -----------------------------------------------------------------------
+void waveform() {
+  Console.println("\n--- ASCII WAVEFORM ---");
+  Console.println("Vajuta ENTER et lõpetada.\n");
+
+  const int COLS = 80;  // ühe rea pikkus
+
+  int prev[200], cur[200];
+  bool st[200], fl[200];
+
+  scanPins(prev, st, fl);
+
+  while (true) {
+    if (Console.available()) {
+      Console.read();
+      Console.println("\n(Waveform lõpetatud)\n");
+      return;
+    }
+
+    scanPins(cur, st, fl);
+
+    for (int i=0; i<totalPinCount; i++) {
+      if (isExcluded(pinMap[i].pin)) continue;
+
+      Console.print(pinMap[i].name);
+      Console.print(" ");
+
+      for (int c=0; c<COLS; c++) {
+        int v = cur[i];
+        char symbol;
+
+        if (v != prev[i]) symbol = '^';   // muutus
+        else if (v == HIGH) symbol = '-'; // HIGH
+        else symbol = '_';                // LOW
+
+        Console.print(symbol);
+      }
+
+      Console.println();
+    }
+
+    memcpy(prev, cur, sizeof(prev));
+    delay(100);
+  }
+}
+
+// -----------------------------------------------------------------------
+// MENÜÜ
+// -----------------------------------------------------------------------
+void printMenu() {
+  Console.println("=== STM32 PIN UTILITIES ===");
+  Console.println("1 - Skaneeri ja naita muutused");
+  Console.println("2 - Live View (reaalajas)");
+  Console.println("3 - ASCII waveform (signaali graafik)");
+  Console.println("Vali: ");
+}
+
+void setup() {
+ 
+  // Seadista algsed HIGH pinid
+  for (int i = 0; i < initialHighCount; ++i) {
+    pinMode(initialHighPins[i].pin, OUTPUT);
+    digitalWrite(initialHighPins[i].pin, HIGH);
+    Console.print("Startup HIGH: ");
+  }
+
+  Console.begin(115200);
+  delay(2000);
+  Console.println("Paus 3sek...");
+  delay(3000);
+
+  Console.println("Algse seisu salvestamine...");
+  bool s[200], f[200];
+  scanPins(stateInitial, s, f);
+
+  Console.println("Valmis.");
+  printMenu();
+}
+
+void loop() {
+  if (!Console.available()) return;
+  char c = Console.read();
+
+  if (c == '1') {
+    Console.println("\n--- MUUTUSTE SKANEERIMINE ---");
+    int val[200];
+    bool st[200], fl[200];
+    scanPins(val, st, fl);
+
+    for (int i = 0; i < totalPinCount; i++) {
+      if (stateInitial[i] < 0) continue;
+
+      bool changed = (val[i] != stateInitial[i]);
+
+      if (changed || fl[i]) {
+        Console.print(pinMap[i].name);
+        Console.print(" : ");
+        Console.print(stateInitial[i]);
+        Console.print(" -> ");
+        Console.print(val[i]);
+        if (changed) Console.print(" [CHANGED]");
+        if (fl[i]) Console.print(" [FLOAT]");
+        Console.println();
+      }
+    }
+
+    Console.println("\n--- Valmis ---\n");
+    printMenu();
+  }
+
+  if (c == '2') {
+    liveView();
+    printMenu();
+  }
+
+  if (c == '3') {
+    waveform();
+    printMenu();
+  }
+}

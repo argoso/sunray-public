@@ -2,7 +2,7 @@
 
 #define CONSOLE_TX PA9
 #define CONSOLE_RX PA10
-HardwareSerial Console(USART1);   // töötab PA9 (TX) ja PA10 (RX)
+HardwareSerial Console(USART1);   // tootab PA9 (TX) ja PA10 (RX)
 
 // -----------------------------
 // Struktuurid ja pin-tabel
@@ -34,22 +34,37 @@ const PinEntry pinMap[] = {
 };
 const int totalPinCount = sizeof(pinMap) / sizeof(pinMap[0]);
 
-// Välistatud pinid
+// Valistatud pinid
 const ExcludedPin excludedPins[] = {
   {PA9,  "Console TX"},
   {PA10, "Console RX"},
+  {PC10, "Serial4 TX"},
+  {PA11, "Serial4 RX"},
+  {PD5,  "Serial6 TX"},
+  {PD6,  "Serial6 RX"},
+  {PA13, "SWDIO"},
+  {PA14, "SWDCLK"},
   {PB6,  "I2C1 SCL"},
   {PB7,  "I2C1 SDA"},
   {PB10, "I2C2 SCL"},
   {PB11, "I2C2 SDA"},
   {PD3,  "BUZZER/ALARM"},
+  {PD1,  "Power ON/OFF"},
+  {PC3,  "Battery Voltage"},
   {PC8,  "Main ENABLE"},
-  //{PF2,  "Left ENABLE"},
+  {PF2,  "Left ENABLE"},
   {PA4,  "Left PWM (OP IN+)"},
+  {PA2,  "Left sense/current"},
   {PF3,  "Left DIR"},
-  //{PF8,  "Right ENABLE"},
+  {PF8,  "Right ENABLE"},
   {PF9,  "Right DIR"},
-  {PA5,  "Right PWM (OP IN+)"}
+  {PA5,  "Right PWM (OP IN+)"},
+  {PA3,  "Right sense/current"},
+  {PF13,  "Mow ENABLE"},
+  {PF14, "Mow DIR"},
+//  {PA?,  "Mow PWM"},
+  {PF10, "Blue Led on PCB"},
+  {PC4,  "(Battery sense/current?)"}
 };
 const int excludedCount = sizeof(excludedPins) / sizeof(excludedPins[0]);
 
@@ -60,7 +75,7 @@ struct InitialHighPin {
 };
 
 const InitialHighPin initialHighPins[] = {
-  {PC8, "Startup HIGH"}
+  {PD1, "Startup HIGH"}
   //{PF2, "Startup HIGH"}
 };
 const int initialHighCount = sizeof(initialHighPins) / sizeof(initialHighPins[0]);
@@ -132,7 +147,7 @@ PinStatus foundPins[256];
 int foundCount = 0;
 
 // -----------------------------
-// Väljundfunktsioonid
+// Valjundfunktsioonid
 // -----------------------------
 void printFoundPins() {
   Console.println();
@@ -183,7 +198,7 @@ void manualPinTest() {
   Console.println();
   Console.println("========================================");
   Console.println("MANUAALNE PIN TEST");
-  Console.println("Sisesta pin nimi (nt PA0, PC8) või ENTER tagasi:");
+  Console.println("Sisesta pin nimi (nt PA0, PC8) voi ENTER tagasi:");
   Console.println("========================================");
   while (true) {
     Console.print("> ");
@@ -197,7 +212,7 @@ void manualPinTest() {
     } else if (isExcluded(p)) {
       Console.print("Pin ");
       Console.print(getPinName(p));
-      Console.print(" on välistatud: ");
+      Console.print(" on valistatud: ");
       Console.println(getExclusionReason(p));
     } else {
       testPin(p);
@@ -222,7 +237,7 @@ void scanPins() {
   String name = getPinName(pin);
 
   if (isExcluded(pin)) {
-    Console.print("Jätan vahele ");
+    Console.print("Jatan vahele ");
     Console.print(name);
     Console.print(" — ");
     Console.println(getExclusionReason(pin));
@@ -246,7 +261,7 @@ void scanPins() {
 }
 
 // -----------------------------
-// Seriaalkäsud
+// Seriaalkasud
 // -----------------------------
 void processSerialCommand(char cmd) {
   switch (cmd) {
@@ -254,7 +269,7 @@ void processSerialCommand(char cmd) {
       Console.println();
       Console.print("Sisesta algusindeks (1..");
       Console.print(totalPinCount);
-      Console.println(") või pin nimi (nt PC8):");
+      Console.println(") voi pin nimi (nt PC8):");
       Console.print("> ");
       while (!Console.available()) delay(10);
       String inp = Console.readStringUntil('\n');
@@ -274,12 +289,12 @@ void processSerialCommand(char cmd) {
       }
 
       if (newIndex == -1) {
-        Console.println("Vigane väärtus!");
+        Console.println("Vigane vaartus!");
         return;
       }
 
       if (isExcluded(pinMap[newIndex].pin)) {
-        Console.print("Alustada ei saa välistatud pinist ");
+        Console.print("Alustada ei saa valistatud pinist ");
         Console.println(getPinName(pinMap[newIndex].pin));
         return;
       }
@@ -310,8 +325,8 @@ void processSerialCommand(char cmd) {
     case 'n': case 'N':
       if (scanState == PAUSED) {
         scanState = SCAN;
-        Console.println(">>> Jatkan järgmise pin'iga.");
-      } else Console.println(">>> NEXT töötab vaid pausist.");
+        Console.println(">>> Jatkan jargmise pin'iga.");
+      } else Console.println(">>> NEXT tootab vaid pausist.");
       break;
 
     case 'e': case 'E':
@@ -335,7 +350,7 @@ void processSerialCommand(char cmd) {
       break;
 
     default:
-      Console.println("Käsud: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=ALUSTA");
+      Console.println("Kasud: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=ALUSTA");
       break;
   }
 }
@@ -345,14 +360,14 @@ void processSerialCommand(char cmd) {
 // -----------------------------
 void setup() {
   Console.begin(115200);
-  delay(200);
+  delay(2000);
   Console.println();
   Console.println("=======================================");
   Console.println("MC33035 PIN MAPPER — 'a' (alusta) tugi + ExcludedPin versioon");
   Console.println("=======================================");
-  Console.println("Käsud: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=ALUSTA");
+  Console.println("Kasud: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=ALUSTA");
   Console.println();
-  Console.println("Välistatud pinid:");
+  Console.println("Valistatud pinid:");
   for (int i = 0; i < excludedCount; ++i) {
     Console.print("  - ");
     Console.print(getPinName(excludedPins[i].pin));
