@@ -35,7 +35,7 @@ LC29HParser::LC29HParser()
   lastValidDataTime(0),
   relPosN(0), relPosE(0), relPosD(0),
   iTOW(0),
-  dgpsAge(0),
+  dgpsAge(0.0),                 // 0 -> Age kasvab alates käivitusest
   numSVdgps(0),
   dgpsPacketCounter(0),
   accuracy(NAN),
@@ -106,6 +106,25 @@ double LC29HParser::getRtkRatio() const {
   return (double)numSVdgps / (double)numSV;
 }
 
+// Efektiivne RTK AGE: aeg viimasest RTK FIX-ist (sekundites).
+double LC29HParser::getDgpsAgeEffective() const {
+  // Kui pole kunagi FIX-i olnud (dgpsAge = 0), tagasta NAN
+  if (dgpsAge <= 0.0) return NAN;
+
+  unsigned long nowMs = millis();
+  unsigned long fixMs = (unsigned long)dgpsAge;
+  unsigned long elapsedMs;
+
+  if (nowMs >= fixMs) {
+    elapsedMs = nowMs - fixMs;
+  } else {
+    // millis() overflow või muu jama – ära lase negatiivseks minna
+    elapsedMs = 0;
+  }
+
+  return (double)elapsedMs / 1000.0;
+}
+
 // ---- NMEA checksum & rea puhastamine (faili-sisesed helperid) ----
 static uint8_t _calcNmeaChecksum(const String& s) {
   int start = s.indexOf('$');
@@ -165,7 +184,7 @@ void LC29HParser::parseNMEA(const String& nmea) {
       String satellitesStr  = fields[7];
       String hdopStr        = fields[8];
       String altStr         = fields[9];
-      String dgpsAgeStr     = fields[13]; // sek
+      // String dgpsAgeStr  = fields[13]; // GGA AGE – EI KASUTA ENAM
 
       int   quality    = qualityStr.toInt();
       int   satellites = satellitesStr.toInt();
@@ -176,13 +195,15 @@ void LC29HParser::parseNMEA(const String& nmea) {
       activeSats = satellites;
       if (numSV < activeSats) numSV = activeSats;
 
-      // DGPS vanus (diagnostika)
-      if (dgpsAgeStr.length() > 0) {
-        float dgpsAgeSeconds = dgpsAgeStr.toFloat();
-        dgpsAge = millis() - (unsigned long)(dgpsAgeSeconds * 1000);
+      // --- RTK FIX AGE LOOGIKA ---
+      // Enne esimest FIX-i on dgpsAge = 0 -> Age = millis() - 0 (kasvab alates käivitusest).
+      // Kui quality == 4 (RTK FIX):
+      //   - salvestame ajamärgi millis(), millal FIX-GGA saabus
+      // Kui quality != 4, siis dgpsAge ei muutu -> Age kasvab edasi.
+      unsigned long nowMs = millis();
+      if (quality == 4) {
+        dgpsAge = (double)nowMs;
         dgpsPacketCounter++;
-      } else {
-        // jäta dgpsAge muutmata kui väljal puudub info
       }
 
       // koordinaadid kraadides
@@ -198,13 +219,7 @@ void LC29HParser::parseNMEA(const String& nmea) {
       // accuracy tuleb PQTMEPE lausest (EPE_2D); ära kirjuta HDOP-iga üle
 
       // --- MÄÄRA LAHENDUSE TÜÜP (DGPS/AUTON ka kasutatavad UI jaoks) ---
-      switch (quality) {
-        case 4: solution = SOL_FIXED;  break; // RTK Fixed
-        case 5: solution = SOL_FLOAT;  break; // RTK Float
-        case 2: solution = SOL_FLOAT;  break; // DGPS -> kasutatav
-        case 1: solution = SOL_FLOAT;  break; // Autonomous -> kasutatav
-        default: solution = SOL_INVALID;
-      }
+      updateSolution(quality);
 
       // --- RELATIIVPOSITSIOON MEETRITES (mitte kraadides!) ---
       // vali referents: AT+P (absolutePosSource) või FIX-i järel esimene kehtiv fix
@@ -256,8 +271,6 @@ void LC29HParser::parseNMEA(const String& nmea) {
       lastValidDataTime = millis();
       updateDGPSSatellites();
       solutionAvail = true;
-      // ära kasuta absoluutset "deadline'i"; kontrolli edaspidi elapsed mustriga
-      // solutionTimeout = millis() + 5000;
     }
   }
 

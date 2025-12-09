@@ -1,7 +1,7 @@
 /*
- * I2C Scanner for STM32F103ZE
- * Otsib I2C seadmeid erinevatel pin kombinatsioonidel
- * Eeldatavad seadmed: 2x MPU6500 IMU
+* I2C Scanner for STM32F103ZE
+* Scans for I2C devices on various pin combinations
+* Possible devices: 2x MPU6500 IMU
  */
 
 #include <Arduino.h>

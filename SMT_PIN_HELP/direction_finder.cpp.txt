@@ -1,4 +1,4 @@
-// mc33035_fwdrev_full.cpp
+// We are looking for a forward/reverse pin for MC33035
 #include <Arduino.h>
 
 // --- Konsool USART1 (PA9 TX, PA10 RX) ---
@@ -29,6 +29,10 @@ const int totalPinCount = sizeof(pinMap) / sizeof(pinMap[0]);
 const ExcludedPin excludedPins[] = {
   {PA9,  "Console TX"},
   {PA10, "Console RX"},
+  {PC10, "Serial4 TX"},
+  {PC11, "Serial4 RX"},
+  {PC12, "Serial6 TX"},
+  {PD2,  "Serial6 RX"},
   {PB6,  "I2C1 SCL"},
   {PB7,  "I2C1 SDA"},
   {PB10, "I2C2 SCL"},

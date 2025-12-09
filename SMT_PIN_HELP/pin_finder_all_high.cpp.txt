@@ -1,0 +1,298 @@
+//Initially sets the pins to HIGH and then starts switching them LOW one by one
+
+#include <Arduino.h>
+
+#define CONSOLE_TX PA9
+#define CONSOLE_RX PA10
+HardwareSerial Console(USART1);
+
+// -----------------------------
+// Struktuurid ja pin-tabel
+// -----------------------------
+struct PinEntry {
+  int pin;
+  const char* name;
+};
+
+struct ExcludedPin {
+  int pin;
+  const char* reason;
+};
+
+// Pin map
+const PinEntry pinMap[] = {
+  {PA0,"PA0"},{PA1,"PA1"},{PA2,"PA2"},{PA3,"PA3"},{PA4,"PA4"},{PA5,"PA5"},{PA6,"PA6"},{PA7,"PA7"},
+  {PA8,"PA8"},{PA9,"PA9"},{PA10,"PA10"},{PA11,"PA11"},{PA12,"PA12"},{PA13,"PA13"},{PA14,"PA14"},{PA15,"PA15"},
+  {PB0,"PB0"},{PB1,"PB1"},{PB2,"PB2"},{PB3,"PB3"},{PB4,"PB4"},{PB5,"PB5"},{PB6,"PB6"},{PB7,"PB7"},
+  {PB8,"PB8"},{PB9,"PB9"},{PB10,"PB10"},{PB11,"PB11"},{PB12,"PB12"},{PB13,"PB13"},{PB14,"PB14"},{PB15,"PB15"},
+  {PC0,"PC0"},{PC1,"PC1"},{PC2,"PC2"},{PC3,"PC3"},{PC4,"PC4"},{PC5,"PC5"},{PC6,"PC6"},{PC7,"PC7"},
+  {PC8,"PC8"},{PC9,"PC9"},{PC10,"PC10"},{PC11,"PC11"},{PC12,"PC12"},{PC13,"PC13"},{PC14,"PC14"},{PC15,"PC15"},
+  {PD0,"PD0"},{PD1,"PD1"},{PD2,"PD2"},{PD3,"PD3"},{PD4,"PD4"},{PD5,"PD5"},{PD6,"PD6"},{PD7,"PD7"},
+  {PD8,"PD8"},{PD9,"PD9"},{PD10,"PD10"},{PD11,"PD11"},{PD12,"PD12"},{PD13,"PD13"},{PD14,"PD14"},{PD15,"PD15"},
+  {PE0,"PE0"},{PE1,"PE1"},{PE2,"PE2"},{PE3,"PE3"},{PE4,"PE4"},{PE5,"PE5"},{PE6,"PE6"},{PE7,"PE7"},
+  {PE8,"PE8"},{PE9,"PE9"},{PE10,"PE10"},{PE11,"PE11"},{PE12,"PE12"},{PE13,"PE13"},{PE14,"PE14"},{PE15,"PE15"},
+  {PF0,"PF0"},{PF1,"PF1"},{PF2,"PF2"},{PF3,"PF3"},{PF4,"PF4"},{PF5,"PF5"},{PF6,"PF6"},{PF7,"PF7"},
+  {PF8,"PF8"},{PF9,"PF9"},{PF10,"PF10"},{PF11,"PF11"},{PF12,"PF12"},{PF13,"PF13"},{PF14,"PF14"},{PF15,"PF15"}
+};
+const int totalPinCount = sizeof(pinMap) / sizeof(pinMap[0]);
+
+// Excluded pins
+const ExcludedPin excludedPins[] = {
+  {PA9,  "Console TX"},
+  {PA10, "Console RX"},
+  {PC10, "Serial4 TX"},
+  {PC11, "Serial4 RX"},
+  {PC12, "Serial6 TX"},
+  {PD2,  "Serial6 RX"},
+  {PA13,"SWDIO"},
+  {PA14,"SWDCLK"},
+  {PB6,"I2C1 SCL"},
+  {PB7,"I2C1 SDA"},
+  {PB10,"I2C2 SCL"},
+  {PB11,"I2C2 SDA"},
+  {PD3,"BUZZER/ALARM"},
+  {PD1,"Power ON/OFF"},
+  {PC3,"Battery Voltage"},
+  {PC8,"Main ENABLE"},
+  {PF2,"Left ENABLE"},
+  {PA4,"Left PWM"},
+  {PA2,"Left sense"},
+  {PF3,"Left DIR"},
+  {PF8,"Right ENABLE"},
+  {PF9,"Right DIR"},
+  {PA5,"Right PWM"},
+  {PA3,"Right sense"},
+  {PF13,"Mow ENABLE"},
+  {PF14,"Mow DIR"},
+//  {PA?,  "Mow PWM"},
+//  {PF10, "Blue Led on PCB"},
+  {PC4,"Battery sense/current"},
+  {PA12,"Start button"},
+//  {PE7,  "Led Green Lock"},
+  {PE10,"Led Red Lock"},
+  {PE11,"Speaker"},
+  {PE12,"Led Green Battery"},
+  {PE13,"Led Green 4h"},
+  {PE14,"Led Green 10h"},
+  {PE15,"Lock Button"},
+  {PD4,"Left Obstacle"},
+  {PD6,"Odo Left"},
+  {PD5,"Odo Right"},
+  {PD7,"Right Lift"}
+//  {PC2,  "Dock"}
+//  {PE6,  "????"}
+};
+const int excludedCount = sizeof(excludedPins) / sizeof(excludedPins[0]);
+
+// Initial HIGH
+struct InitialHighPin { int pin; const char* note; };
+const InitialHighPin initialHighPins[] = {
+  {PD1, "Startup HIGH"}//,   // Power ON
+ // {PC8,"Main ENABLE"}
+};
+const int initialHighCount = sizeof(initialHighPins) / sizeof(initialHighPins[0]);
+
+// Initial LOW
+struct InitialLowPin { int pin; const char* note; };
+const InitialLowPin initialLowPins[] = {
+  //{PE6, "Startup LOW"}
+};
+const int initialLowCount = sizeof(initialLowPins) / sizeof(initialLowPins[0]);
+
+// -----------------------------
+// Helper functions
+// -----------------------------
+String getPinName(int pin) {
+  for (int i=0;i<totalPinCount;i++)
+    if (pinMap[i].pin==pin) return pinMap[i].name;
+  return "?";
+}
+
+int getPinByName(String name) {
+  name.trim(); name.toUpperCase();
+  for (int i=0;i<totalPinCount;i++)
+    if (name == pinMap[i].name) return pinMap[i].pin;
+  return -1;
+}
+
+bool isExcluded(int pin) {
+  for (int i=0;i<excludedCount;i++)
+    if (excludedPins[i].pin==pin) return true;
+  return false;
+}
+
+int getPinIndex(int pin) {
+  for (int i=0;i<totalPinCount;i++)
+    if (pinMap[i].pin == pin)
+      return i;
+  return -1;
+}
+
+// -----------------------------
+// Scan state
+// -----------------------------
+enum ScanState { SCAN, PAUSED, STOPPED };
+ScanState scanState = SCAN;
+
+int currentIndex = 0;
+bool stopFlag = false;
+
+unsigned long testLowTime = 5000;       // 3 sek LOW
+unsigned long startupHighDelay = 5000;  // 5 sek kõik HIGH
+bool startupDone = false;
+
+// -----------------------------
+// Pin test (LOW → HIGH)
+// -----------------------------
+void testPin(int pin) {
+  Console.println();
+  Console.print("Testin pinni: ");
+  Console.println(getPinName(pin));
+
+  pinMode(pin, OUTPUT);
+
+  Console.println("  LOW (3 sek)...");
+  digitalWrite(pin, LOW);
+  delay(testLowTime);
+
+  Console.println("  HIGH tagasi...");
+  digitalWrite(pin, HIGH);
+  delay(200);
+
+  Console.println("  >> Test loppenud!");
+  Console.println();
+}
+
+// -----------------------------
+// All non excluded pins HIGH state at begin
+// -----------------------------
+void setAllPinsHighExceptExcluded() {
+  Console.println("Seadistan koik mitte-excluded pinid HIGH...");
+
+  for (int i = 0; i < totalPinCount; i++) {
+    int pin = pinMap[i].pin;
+
+    if (!isExcluded(pin)) {
+      pinMode(pin, OUTPUT);
+      digitalWrite(pin, HIGH);
+
+      Console.print("  HIGH -> ");
+      Console.println(getPinName(pin));
+    }
+  }
+
+  Console.print("Ootan ");
+  Console.print(startupHighDelay / 1000);
+  Console.println(" sekundit...");
+  delay(startupHighDelay);
+
+  Console.println("Algus HIGH tehtud!");
+}
+
+// -----------------------------
+// Scan function
+// -----------------------------
+void scanPins() {
+  if (currentIndex >= totalPinCount) {
+    Console.println(">>> Kõik pinid testitud!");
+    scanState = STOPPED;
+    return;
+  }
+
+  int pin = pinMap[currentIndex].pin;
+
+  if (isExcluded(pin)) {
+    currentIndex++;
+    return;
+  }
+
+  Console.print("Testin PIN: ");
+  Console.println(getPinName(pin));
+
+  testPin(pin);
+  currentIndex++;
+}
+
+// -----------------------------
+// Serial commands
+// -----------------------------
+void processSerialCommand(char cmd) {
+  switch (cmd) {
+    case 'p': case 'P':
+      scanState = PAUSED;
+      Console.println("PAUSE");
+      break;
+
+    case 'n': case 'N':
+      if (scanState==PAUSED) {
+        scanState = SCAN;
+        Console.println("NEXT");
+      }
+      break;
+
+    case 'r': case 'R':
+      currentIndex = 0;
+      stopFlag = false;
+      scanState = SCAN;
+      Console.println("RESTART");
+      break;
+
+    case 'm': case 'M': {
+      Console.println("Sisesta pin nimi:");
+      while (!Console.available()) delay(10);
+      String p = Console.readStringUntil('\n');
+      p.trim();
+      int pin = getPinByName(p);
+      if (pin != -1 && !isExcluded(pin))
+        testPin(pin);
+      else
+        Console.println("Vigane vagy excluded pin");
+      break;
+    }
+
+    default:
+      Console.println("Käsud: p=PAUSE, n=NEXT, r=RESTART, m=MANUAL");
+      break;
+  }
+}
+
+// -----------------------------
+// setup
+// -----------------------------
+void setup() {
+  Console.begin(115200);
+  delay(1500);
+
+  Console.println("MC33035 PIN MAPPER — auto HIGH start");
+
+  // Initial HIGH/LOW (sinu manuaalsed sätted)
+  for (int i=0;i<initialHighCount;i++) {
+    pinMode(initialHighPins[i].pin, OUTPUT);
+    digitalWrite(initialHighPins[i].pin, HIGH);
+  }
+  for (int i=0;i<initialLowCount;i++) {
+    pinMode(initialLowPins[i].pin, OUTPUT);
+    digitalWrite(initialLowPins[i].pin, LOW);
+  }
+
+  // Kõik teised pinid HIGH (ainult 1x)
+  if (!startupDone) {
+    setAllPinsHighExceptExcluded();
+    startupDone = true;
+  }
+
+  scanState = SCAN;
+}
+
+// -----------------------------
+// loop
+// -----------------------------
+void loop() {
+  if (Console.available())
+    processSerialCommand(Console.read());
+
+  if (scanState == SCAN && !stopFlag)
+    scanPins();
+  else
+    delay(50);
+}

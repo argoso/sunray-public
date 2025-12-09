@@ -1,3 +1,5 @@
+// Saves the original pin states, then you change the sensor and compare with the original states
+
 #include <Arduino.h>
 
 HardwareSerial Console(USART1);
@@ -25,9 +27,9 @@ const ExcludedPin excludedPins[] = {
   {PA9,  "Console TX"},
   {PA10, "Console RX"},
   {PC10, "Serial4 TX"},
-  {PA11, "Serial4 RX"},
-  {PD5,  "Serial6 TX"},
-  {PD6,  "Serial6 RX"},
+  {PC11, "Serial4 RX"},
+  {PC12, "Serial6 TX"},
+  {PD2,  "Serial6 RX"},
   {PA13, "SWDIO"},
   {PA14, "SWDCLK"},
   {PB6,  "I2C1 SCL"},

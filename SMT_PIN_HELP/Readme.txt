@@ -1,25 +1,45 @@
-Helper programs to find Einhell lawn mower GC-RM 500 pins
-and my other lawn mower with STM32F103ZED6 (GD32F303ZET6 analog) CPU's
-
 Einhell lawn mower GC-RM 500
 STM32F103ZED6 Pins
 
-IMU #1 PB7  (SDA), PB6  (SCL)  Confirmed (I2C1)
-IMU #2 PB11 (SDA), PB10 (SCL)  Confirmed (I2C2)
+Helper programs to find Einhell lawn mower GC-RM 500 pins
+and my other lawn mower with STM32F103ZED6 (GD32F303ZET6 analog) CPU's
+
+in PCB we found
+3x MC33035DW 	Brushless DC Motor Controller  
+3x MC33039 	Closed loop speed control adapter  
+9x DTU6704 	Dual MOSFET  (FDD8424H) 3x Motor output
+2x DTU6661	P-channel 60V 61A (power/battery)
+9579GM P-Channel 60-V (D-S) MOSFET (power/battery)
+3x LM358 OPAMP
+MZE4030 Logic quad 2-input EX-OR
+LM2576HV 12V Voltage Regulator
+LM2576 5.0V Voltage Regulator
+GH16D 3.3V Voltage Regulator
+2x MP6500 IMU
+
+IMU #1 PB7  (SDA), PB6  (SCL)  (I2C1)
+IMU #2 PB11 (SDA), PB10 (SCL)  (I2C2)
 
 Buzer Alarm: ENABLE: PD3 (HIGH)
 MC33035 pin PC8 = All pin 7 HIGH , LOW All Brake
 
 Serial
 PA9 "Console TX", PA10 "Console RX"
-PD5 "Serial6 TX", PD6 "Serial6 RX"
+PC12 "Serial6 TX", PD2 "Serial6 RX"
 PC10 "Serial4 TX", PC11 "Serial4 RX"
 
-PD5 R255 (Right Obstacle)
-PD6 R252 (Left Lift)
+matrix_mow800.cpp
+HardwareSerial Serial1(PA10, PA9);  // USART1 CONSOLE
+HardwareSerial Serial6(PD2, PC12);   // USART2 ESP32 Serial6
+HardwareSerial Serial4(PC11, PC10); // USART3 / UART4 / GPS
+
+PD2 R59 Serial6 TX
+PC12 R61 Serial6 RX
+PD5 R255 (Right Obstacle) > Odometry Right
+PD6 R252 (Left Lift) > Odometry Left
 PD4 R253 (Left Obstacle)
 PD7 R254 (Right Lift)
-PC9 (PCB Wifi pin5)
+PC9 (PCB Wifi pin5) not used
 
 Left MC33035 pin 3 PF3 = Dir (HIGH=Reverse, LOW=Forward)
 Left MC33035 pin 23 PF2 = Enable HIGH (pin 23 = LOW)
@@ -38,9 +58,9 @@ PF10 (HIGH) activates blue LED on PCB
   {PA9,  "Console TX"},
   {PA10, "Console RX"},
   {PC10, "Serial4 TX"},
-  {PA11, "Serial4 RX"},
-  {PD5,  "Serial6 TX R Obs"},
-  {PD6,  "Serial6 RX L Lift"},
+  {PC11, "Serial4 RX"},
+  {PC12, "Serial6 TX"},
+  {PD2,  "Serial6 RX"},
   {PA13, "SWDIO"},
   {PA14, "SWDCLK"},
   {PB6,  "I2C1 SCL"},
@@ -73,12 +93,14 @@ PF10 (HIGH) activates blue LED on PCB
   {PE14, "Led Green 10h"},
   {PE15, "Lock Button"},
   {PD4,  "Left Obstacle"},
-  {PD7,  "Right Lift"}
+  {PD6,  "Odo Left"},
+  {PD5,  "Odo Right"},
+  {PD7,  "Right Lift"},
+  {PC2,  "Dock"}
 
   {, ""},
-  {, ""},
-  {, ""},
 
+/*
 PA12 : 0 -> 1 [CHANGED] Start button
 PE7  : 0 -> 1 [CHANGED] Led Green Lock
 PE10 : 0 -> 1 [CHANGED] Led Red Lock
@@ -92,12 +114,14 @@ PB0 : 0 -> 1 [CHANGED]
 PB9 : 0 -> 1 [CHANGED] Power button?
 PD7 : 0 -> 1 [CHANGED] Lift or bumper
 PD8 : 0 -> 1 [CHANGED] Lift or bumper
+*/
 
 PA2 op out1 U3 (Left sense/current)
 PA3 op out2 U3 (Right sense/current)
 PC4 op out2 U4 (Battery sense/current?)
 PD1 Power ON/OFF
 PC3 Battery Voltage
+PC2 Battery Dock/Charge
 
 
 MC33035
@@ -106,13 +130,10 @@ MC33035
 - **Pin 3: Forward/Reverse
 - **Pin 11: PWM
 - **Pin 23: Brake (LOW=run, HIGH=brake)
-
-
 **Power & REFERENCE:**
 - **Pin 17: VCC** (10-30V) - kontrolli kas on pinge
 - **Pin 18: VC** (bottom drive toide)
 - **Pin 8: Reference Output** (6.25V väljund)
-
 **Hall sensors inputs:**
 - **Pin 4: SA** (sensor A)
 - **Pin 5: SB** (sensor B)

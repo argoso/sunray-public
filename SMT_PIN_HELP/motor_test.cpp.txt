@@ -1,5 +1,5 @@
 /*
- *  MOTOR TEST - MC33035 (INVERTED LOGIC!)
+ *  MOTOR TEST - MC33035
  * 
  * - PC8: Global ENABLE (HIGH=All on pin7 )
  * - PF13: Enable (MC33035 Pin 23 Low)

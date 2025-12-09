@@ -1,11 +1,13 @@
+//Toggles pins HIGH and LOW alternately
+
 #include <Arduino.h>
 
 #define CONSOLE_TX PA9
 #define CONSOLE_RX PA10
-HardwareSerial Console(USART1);   // tootab PA9 (TX) ja PA10 (RX)
+HardwareSerial Console(USART1);   // working on PA9 (TX) and PA10 (RX)
 
 // -----------------------------
-// Struktuurid ja pin-tabel
+// Structures and pin table
 // -----------------------------
 struct PinEntry {
   int pin;
@@ -17,7 +19,7 @@ struct ExcludedPin {
   const char* reason;
 };
 
-// Pinide kaart
+// Pin map
 const PinEntry pinMap[] = {
   {PA0,"PA0"},{PA1,"PA1"},{PA2,"PA2"},{PA3,"PA3"},{PA4,"PA4"},{PA5,"PA5"},{PA6,"PA6"},{PA7,"PA7"},
   {PA8,"PA8"},{PA9,"PA9"},{PA10,"PA10"},{PA11,"PA11"},{PA12,"PA12"},{PA13,"PA13"},{PA14,"PA14"},{PA15,"PA15"},
@@ -34,14 +36,14 @@ const PinEntry pinMap[] = {
 };
 const int totalPinCount = sizeof(pinMap) / sizeof(pinMap[0]);
 
-// Valistatud pinid
+// Excluded pins
 const ExcludedPin excludedPins[] = {
   {PA9,  "Console TX"},
   {PA10, "Console RX"},
   {PC10, "Serial4 TX"},
-  {PA11, "Serial4 RX"},
-  {PD5,  "Serial6 TX"},
-  {PD6,  "Serial6 RX"},
+  {PC11, "Serial4 RX"},
+  {PC12, "Serial6 TX"},
+  {PD2,  "Serial6 RX"},
   {PA13, "SWDIO"},
   {PA14, "SWDCLK"},
   {PB6,  "I2C1 SCL"},
@@ -63,36 +65,52 @@ const ExcludedPin excludedPins[] = {
   {PF13,  "Mow ENABLE"},
   {PF14, "Mow DIR"},
 //  {PA?,  "Mow PWM"},
-  {PF10, "Blue Led on PCB"},
-  {PC4,  "(Battery sense/current?)"}
+//  {PF10, "Blue Led on PCB"},
+  {PC4,  "(Battery sense/current?)"},
+  {PA12, "Start button"},
+//  {PE7,  "Led Green Lock"},
+  {PE10, "Led Red Lock"},
+  {PE11, "Speaker"},
+  {PE12, "Led Green Battery"},
+  {PE13, "Led Green 4h"},
+  {PE14, "Led Green 10h"},
+  {PE15, "Lock Button"},
+  {PD4,  "Left Obstacle"},
+  {PD6,  "Odo Left"},
+  {PD5,  "Odo Right"},
+  {PD7,  "Right Lift"},
+  {PC2,  "Dock"},
+  {PE6,  ""}
 };
 const int excludedCount = sizeof(excludedPins) / sizeof(excludedPins[0]);
 
-// Pinid, mille algolek seatakse HIGH
+// Initial HIGH
 struct InitialHighPin {
   int pin;
   const char* note;
 };
 
 const InitialHighPin initialHighPins[] = {
-  {PD1, "Startup HIGH"}
-  //{PF2, "Startup HIGH"}
+  {PD1,  "Power ON/OFF"},
+  //{PC8,  "Main ENABLE"},
+  //{PC2,  "Dock"}
+  {PE6,  ""}
 };
 const int initialHighCount = sizeof(initialHighPins) / sizeof(initialHighPins[0]);
 
-// Pinid, mille algolek seatakse LOW
+// Initial LOW
 struct InitialLowPin {
   int pin;
   const char* note;
 };
 
 const InitialLowPin initialLowPins[] = {
-  //{PD3, "Startup LOW"}
+  //{PE6, ""}
 };
 const int initialLowCount = sizeof(initialLowPins) / sizeof(initialLowPins[0]);
 
 // -----------------------------
-// Abi-funktsioonid
+// Help functions
 // -----------------------------
 String getPinName(int pin) {
   for (int i = 0; i < totalPinCount; ++i)
@@ -132,7 +150,7 @@ int getPinIndex(int pin) {
 }
 
 // -----------------------------
-// Skannimise olek ja parameetrid
+// Scan status and parameters
 // -----------------------------
 enum ScanState { SCAN, PAUSED, STOPPED };
 ScanState scanState = SCAN;
@@ -147,14 +165,14 @@ PinStatus foundPins[256];
 int foundCount = 0;
 
 // -----------------------------
-// Valjundfunktsioonid
+// Output functions
 // -----------------------------
 void printFoundPins() {
   Console.println();
-  Console.println("LEITUD PINID:");
+  Console.println("PIN found:");
   Console.println("========================================");
   if (foundCount == 0)
-    Console.println("  (veel pole midagi leitud)");
+    Console.println("  (didnt find any yet)");
   else {
     for (int i = 0; i < foundCount; ++i) {
       Console.print("  ");
@@ -170,11 +188,11 @@ void printFoundPins() {
 }
 
 // -----------------------------
-// Pin test (ilma PWMita)
+// Pin test
 // -----------------------------
 void testPin(int pin) {
   Console.println();
-  Console.print("Testin pinni: ");
+  Console.print("Checking pin: ");
   Console.println(getPinName(pin));
 
   pinMode(pin, OUTPUT);
@@ -187,18 +205,18 @@ void testPin(int pin) {
   digitalWrite(pin, LOW);
   delay(testDelay);
 
-  Console.println("  >> Test loppes!");
+  Console.println("  >> End testing!");
   Console.println();
 }
 
 // -----------------------------
-// Manuaalne test
+// Manual test
 // -----------------------------
 void manualPinTest() {
   Console.println();
   Console.println("========================================");
-  Console.println("MANUAALNE PIN TEST");
-  Console.println("Sisesta pin nimi (nt PA0, PC8) voi ENTER tagasi:");
+  Console.println("MANUAL PIN TEST");
+  Console.println("Enter pin name (nt PA0, PC8) or ENTER to back:");
   Console.println("========================================");
   while (true) {
     Console.print("> ");
@@ -208,11 +226,11 @@ void manualPinTest() {
     if (input.length() == 0) return;
     int p = getPinByName(input);
     if (p == -1) {
-      Console.println("Tundmatu pin! Proovi uuesti.");
+      Console.println("Unknown PIN! Try again.");
     } else if (isExcluded(p)) {
       Console.print("Pin ");
       Console.print(getPinName(p));
-      Console.print(" on valistatud: ");
+      Console.print(" is excluded: ");
       Console.println(getExclusionReason(p));
     } else {
       testPin(p);
@@ -222,12 +240,12 @@ void manualPinTest() {
 }
 
 // -----------------------------
-// Skannimisrežiim
+// Scanning regiment
 // -----------------------------
 void scanPins() {
   if (currentIndex >= totalPinCount) {
     Console.println();
-    Console.println(">>> Koik pinid on testitud! <<<");
+    Console.println(">>> All pins checked! <<<");
     Console.println();
     scanState = STOPPED;
     return;
@@ -237,16 +255,16 @@ void scanPins() {
   String name = getPinName(pin);
 
   if (isExcluded(pin)) {
-    Console.print("Jatan vahele ");
+    Console.print("Skip pin: ");
     Console.print(name);
-    Console.print(" — ");
+    Console.print(" - ");
     Console.println(getExclusionReason(pin));
     currentIndex++;
     return;
   }
 
   Console.println("========================================");
-  Console.print("Testin PINI: ");
+  Console.print("Testing pin: ");
   Console.print(name);
   Console.print("  (");
   Console.print(currentIndex + 1);
@@ -261,15 +279,15 @@ void scanPins() {
 }
 
 // -----------------------------
-// Seriaalkasud
+// Serial commands
 // -----------------------------
 void processSerialCommand(char cmd) {
   switch (cmd) {
     case 'a': case 'A': {
       Console.println();
-      Console.print("Sisesta algusindeks (1..");
+      Console.print("Enter start index (1..");
       Console.print(totalPinCount);
-      Console.println(") voi pin nimi (nt PC8):");
+      Console.println(") or pin name (nt PC8):");
       Console.print("> ");
       while (!Console.available()) delay(10);
       String inp = Console.readStringUntil('\n');
@@ -289,12 +307,12 @@ void processSerialCommand(char cmd) {
       }
 
       if (newIndex == -1) {
-        Console.println("Vigane vaartus!");
+        Console.println("Wrong value!");
         return;
       }
 
       if (isExcluded(pinMap[newIndex].pin)) {
-        Console.print("Alustada ei saa valistatud pinist ");
+        Console.print("Cant start with excluded pin ");
         Console.println(getPinName(pinMap[newIndex].pin));
         return;
       }
@@ -302,7 +320,7 @@ void processSerialCommand(char cmd) {
       currentIndex = newIndex;
       scanState = SCAN;
       stopFlag = false;
-      Console.print(">>> Alustan alates ");
+      Console.print(">>> Start at ");
       Console.print(getPinName(pinMap[currentIndex].pin));
       Console.print(" (indeks ");
       Console.print(currentIndex + 1);
@@ -325,8 +343,8 @@ void processSerialCommand(char cmd) {
     case 'n': case 'N':
       if (scanState == PAUSED) {
         scanState = SCAN;
-        Console.println(">>> Jatkan jargmise pin'iga.");
-      } else Console.println(">>> NEXT tootab vaid pausist.");
+        Console.println(">>> I'll continue with the next pin..");
+      } else Console.println(">>> NEXT only produces from a pause.");
       break;
 
     case 'e': case 'E':
@@ -339,35 +357,32 @@ void processSerialCommand(char cmd) {
 
     case 'p': case 'P':
       scanState = PAUSED;
-      Console.println(">>> Skannimine peatatud (PAUSE).");
+      Console.println(">>> Scanning stopped(PAUSE).");
       break;
 
     case 'r': case 'R':
       currentIndex = 0;
       stopFlag = false;
       scanState = SCAN;
-      Console.println(">>> RESTART: alustame algusest!");
+      Console.println(">>> RESTART: start from the beginning!");
       break;
 
     default:
-      Console.println("Kasud: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=ALUSTA");
+      Console.println("Commands: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=BEGIN at..");
       break;
   }
 }
 
 // -----------------------------
-// setup ja loop
+// setup and loop
 // -----------------------------
 void setup() {
   Console.begin(115200);
   delay(2000);
   Console.println();
-  Console.println("=======================================");
-  Console.println("MC33035 PIN MAPPER — 'a' (alusta) tugi + ExcludedPin versioon");
-  Console.println("=======================================");
-  Console.println("Kasud: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=ALUSTA");
+  Console.println("Commands: s=STOP, n=NEXT, e=INFO, m=MANUAL, p=PAUSE, r=RESTART, a=BEGIN at..");
   Console.println();
-  Console.println("Valistatud pinid:");
+  Console.println("Excluded pins: ");
   for (int i = 0; i < excludedCount; ++i) {
     Console.print("  - ");
     Console.print(getPinName(excludedPins[i].pin));
@@ -377,14 +392,14 @@ void setup() {
   Console.println("=======================================");
   Console.println();
   scanState = SCAN;
-  // Seadista algsed HIGH pinid
+  // Initial HIGH pins
   for (int i = 0; i < initialHighCount; ++i) {
     pinMode(initialHighPins[i].pin, OUTPUT);
     digitalWrite(initialHighPins[i].pin, HIGH);
     Console.print("Startup HIGH: ");
     Console.println(getPinName(initialHighPins[i].pin));
   }
-  // Seadista algsed LOW pinid
+  // Initial LOW pins
   for (int i = 0; i < initialLowCount; ++i) {
     pinMode(initialLowPins[i].pin, OUTPUT);
     digitalWrite(initialLowPins[i].pin, LOW);

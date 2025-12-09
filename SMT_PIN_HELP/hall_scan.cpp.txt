@@ -1,9 +1,9 @@
+// We are trying to find a signal similar to a Hall sensor (pulse signal)
+
 #include <Arduino.h>
 
-// ---------- Sinu Console --------------
 HardwareSerial Console(USART1);
 
-// ---------- PIN MAP (sama mis sinul) --------------
 struct PinEntry { int pin; const char* name; };
 struct ExcludedPin { int pin; const char* reason; };
 
@@ -27,9 +27,9 @@ const ExcludedPin excludedPins[] = {
   {PA9,  "Console TX"},
   {PA10, "Console RX"},
   {PC10, "Serial4 TX"},
-  {PA11, "Serial4 RX"},
-  {PD5,  "Serial6 TX"},
-  {PD6,  "Serial6 RX"},
+  {PC11, "Serial4 RX"},
+  {PC12, "Serial6 TX"},
+  {PD2,  "Serial6 RX"},
   {PA13, "SWDIO"},
   {PA14, "SWDCLK"},
   {PB6,  "I2C1 SCL"},
@@ -73,9 +73,9 @@ bool isExcluded(int p) {
 
 // --------- MOTOR TEST PINID -----------
 const int GLOBAL_ENABLE = PC8;
-const int MOTOR_ENABLE   = PF8; //PF8 - Right, PF2 - Left, PF13 - Mow
-const int MOTOR_DIR      = PF9; //PF9 - Right, PF3 - Left, PF14 - MOw
-const int MOTOR_PWM      = PA5; //PA5 - Right, PA4 - Left, ? - Mow
+const int MOTOR_ENABLE   = PF2; //PF8 - Right, PF2 - Left, PF13 - Mow
+const int MOTOR_DIR      = PF3; //PF9 - Right, PF3 - Left, PF14 - MOw
+const int MOTOR_PWM      = PA4; //PA5 - Right, PA4 - Left, ? - Mow
 
 // --------- MOOTORI KÄIVITUS ----------
 void startMotor() {
