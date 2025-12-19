@@ -2,8 +2,8 @@
 #include <Arduino.h>
 
 // =========== WIFI ===========
-static const char WIFI_SSID[]     = "Ojaääre";
-static const char WIFI_PASSWORD[] = "internet";
+static const char WIFI_SSID[]     = "wifi_ssid";
+static const char WIFI_PASSWORD[] = "wifi_pass";
 
 // =========== RTCM SERVER ===========
 static const IPAddress RTCM_SERVER_IP(192, 168, 8, 149);
