@@ -6,8 +6,8 @@ static const char WIFI_SSID[]     = "wifi_ssid";
 static const char WIFI_PASSWORD[] = "wifi_pass";
 
 // =========== RTCM SERVER ===========
-static const IPAddress RTCM_SERVER_IP(192, 168, 8, 149);
-static const uint16_t  RTCM_SERVER_PORT = 2102;
+static const IPAddress RTCM_SERVER_IP(192, 168, 1, 100);
+static const uint16_t  RTCM_SERVER_PORT = 1025;
 
 // =========== AJASTUSED ===========
 static const unsigned long WIFI_RETRY_MS   = 5000UL;
